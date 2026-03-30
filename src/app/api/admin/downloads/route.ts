@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const params: any[] = [];
     let paramIdx = 1;
     if (pluginFilter) { conditions.push(`plugin_slug = $${paramIdx++}`); params.push(pluginFilter); }
-    if (daysFilter > 0) { conditions.push(`created_at > NOW() - INTERVAL '${daysFilter} days'`); }
+    if (daysFilter > 0) { conditions.push(`created_at > NOW() - INTERVAL '1 day' * $${paramIdx++}`); params.push(daysFilter); }
 
     const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 

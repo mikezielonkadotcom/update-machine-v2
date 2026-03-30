@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
   const sessionId = randomHex(32);
 
   await query(
-    `INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '${sessionDays} days')`,
-    [sessionId, user.id]
+    `INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '1 day' * $3)`,
+    [sessionId, user.id, sessionDays]
   );
 
   // Probabilistic session cleanup
