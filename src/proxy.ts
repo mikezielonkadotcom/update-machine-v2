@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * inside each route handler. This middleware is a fast gatekeeper that
  * rejects obviously unauthenticated requests early.
  */
-export function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Only gate /api/admin/* routes

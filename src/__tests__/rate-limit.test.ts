@@ -29,7 +29,6 @@ vi.mock('../lib/db', () => {
 
 import { rateLimit } from '../lib/rate-limit';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = await import('../lib/db') as any;
 
 describe('rateLimit', () => {

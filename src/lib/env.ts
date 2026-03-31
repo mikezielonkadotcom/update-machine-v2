@@ -1,7 +1,9 @@
 /**
- * Validates required environment variables at import time.
+ * Validates required environment variables on first request.
  * Throws immediately if any are missing so the app fails loudly
  * at startup instead of crashing on first use.
+ *
+ * Skipped during build (NEXT_PHASE=phase-production-build) and test.
  */
 
 const required = [
@@ -13,11 +15,14 @@ const required = [
   'ADMIN_TOKEN',
 ] as const;
 
-const missing = required.filter((key) => !process.env[key]);
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
 
-if (missing.length > 0 && process.env.NODE_ENV !== 'test') {
-  throw new Error(
-    `Missing required environment variables: ${missing.join(', ')}. ` +
-    'Check .env.local or your Vercel environment settings.'
-  );
+if (!isBuildPhase && process.env.NODE_ENV !== 'test') {
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}. ` +
+      'Check .env.local or your Vercel environment settings.'
+    );
+  }
 }
