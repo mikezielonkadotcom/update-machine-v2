@@ -6,6 +6,15 @@ import { logActivity } from '@/lib/logging';
 
 export { adminOptions as OPTIONS };
 
+export const GET = adminHandler(async (request, user, { headers }) => {
+  return NextResponse.json({
+    id: user.id,
+    email: user.email,
+    display_name: user.display_name,
+    role: user.role,
+  }, { headers });
+});
+
 export const PUT = adminHandler(async (request, user, { headers, ip }) => {
   if (user.via === 'token') return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 

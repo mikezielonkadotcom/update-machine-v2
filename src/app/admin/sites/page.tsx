@@ -103,6 +103,7 @@ export default function Dashboard() {
   const [keys, setKeys] = useState<any[]>([]);
   const [blocked, setBlocked] = useState<any[]>([]);
   const [stats, setStats] = useState({ sites: 0, plugins: 0, activeKeys: 0, groups: 0, blocked: 0, errors: 0, downloads: 0 });
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Form states
   const [gName, setGName] = useState('');
@@ -172,29 +173,22 @@ export default function Dashboard() {
         errors: errDigest.total_errors || 0,
         downloads: dlRes.total || 0,
       });
-    } catch (e) {
-      console.error('Dashboard load error:', e);
+    } catch (e: any) {
+      setLoadError(e.message || 'Failed to load dashboard data');
     }
   }, []);
 
   useEffect(() => {
-    // Get current user from login cookie (we need to verify session)
-    fetch('/api/admin/sessions').then(r => {
+    // Load current user profile and dashboard data
+    fetch('/api/admin/profile').then(r => {
       if (!r.ok) { window.location.href = '/logmein'; return null; }
       return r.json();
     }).then(data => {
       if (data) {
-        // We don't get current user from sessions — get from sites endpoint (any auth'd request)
-        setCurrentUser({ email: 'Loading...', role: 'owner', display_name: 'Loading...' });
+        setCurrentUser(data);
         loadDashboard();
       }
     }).catch(() => { window.location.href = '/logmein'; });
-
-    // Also try to get user info from a profile-like endpoint
-    fetch('/api/admin/users').then(r => r.json()).then(data => {
-      // The current user info isn't directly exposed, but we can infer from sessions
-      // For now, we'll load it properly
-    }).catch(() => {});
   }, [loadDashboard]);
 
   const logout = async () => {
@@ -397,6 +391,13 @@ export default function Dashboard() {
       </div>
 
       <div className="content">
+        {loadError && (
+          <div className="card" style={{ borderColor: '#dc2626', marginBottom: '1rem' }}>
+            <span className="badge badge-revoked">Error</span>{' '}
+            <span style={{ fontSize: '0.85rem' }}>{loadError}</span>
+            <button className="btn-sm" style={{ marginLeft: '1rem' }} onClick={() => { setLoadError(null); loadDashboard(); }}>Retry</button>
+          </div>
+        )}
         {/* Sites Tab */}
         <div className={`panel ${activeTab === 'sites' ? 'active' : ''}`}>
           {sites.length === 0 ? <p className="empty">No sites tracked yet.</p> : (

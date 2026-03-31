@@ -4,6 +4,7 @@ import { getObject } from '@/lib/r2';
 import { query, queryOne } from '@/lib/db';
 import { logWarn, logError as logErr } from '@/lib/logging';
 import { getClientIp } from '@/lib/auth';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
@@ -82,6 +83,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
   }
 
   if (isZip) {
+    // Rate limit zip downloads: 60 per minute per IP
+    const ip = getClientIp(request);
+    if (await rateLimit('download', ip, 60, 60_000)) {
+      return new NextResponse('Too Many Requests', { status: 429, headers: corsHeaders });
+    }
+
     const authResult = await checkDownloadAuth(slug, request);
     if (authResult) {
       return new NextResponse(authResult.message, { status: authResult.status, headers: corsHeaders });
@@ -95,16 +102,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
   const response = await serveR2File(key, contentType, cacheSeconds, extraHeaders);
 
-  // Log zip downloads
+  // Log zip downloads with per-key audit trail
   if (isZip && response.status === 200) {
     const baseName = filename.replace(/\.zip$/, '');
     const version = baseName.startsWith(slug + '-') ? baseName.slice(slug.length + 1) : baseName;
     const siteUrl = request.headers.get('Referer') || new URL(request.url).searchParams.get('site_url') || '';
     const siteIp = getClientIp(request);
     const userAgent = request.headers.get('User-Agent') || '';
+
+    // Resolve site_key_id for audit trail
+    const plainKey = extractSiteKey(request);
+    let siteKeyId: number | null = null;
+    if (plainKey) {
+      const keyRow = await validateSiteKey(plainKey);
+      if (keyRow) siteKeyId = keyRow.id;
+    }
+
     query(
-      'INSERT INTO download_log (plugin_slug, plugin_version, site_url, site_ip, user_agent) VALUES ($1, $2, $3, $4, $5)',
-      [slug, version, siteUrl, siteIp, userAgent]
+      'INSERT INTO download_log (plugin_slug, plugin_version, site_url, site_ip, user_agent, site_key_id) VALUES ($1, $2, $3, $4, $5, $6)',
+      [slug, version, siteUrl, siteIp, userAgent, siteKeyId]
     ).catch(() => {});
   }
 
