@@ -28,6 +28,7 @@ Plugin release server for WordPress plugins. Serves update manifests, zip downlo
 3. Set up the database:
    ```bash
    psql $DATABASE_URL < db/001-schema.sql
+   psql $DATABASE_URL < db/002-rate-limits-and-download-key.sql
    ```
 
 4. Run locally:
@@ -43,7 +44,7 @@ Plugin release server for WordPress plugins. Serves update manifests, zip downlo
 | GET/POST | `/{slug}/update.json` | Plugin update manifest |
 | GET | `/{slug}/{slug}-{ver}.zip` | Plugin zip download |
 | GET | `/{slug}/icon-*.png` | Plugin icons |
-| POST | `/register` | Site auto-registration |
+| POST | `/api/register` | Site auto-registration |
 | GET | `/api/health` | Health check |
 
 ### Admin
@@ -104,7 +105,7 @@ The `um-updater.php` client continues to work unchanged:
 
 1. Connect repo to Vercel
 2. Add environment variables in Vercel dashboard
-3. Run database migration: `psql $DATABASE_URL < db/001-schema.sql`
+3. Run database migrations: `psql $DATABASE_URL < db/001-schema.sql && psql $DATABASE_URL < db/002-rate-limits-and-download-key.sql`
 4. Point `updatemachine.com` DNS to Vercel
 5. Generate R2 API tokens in Cloudflare dashboard
 
@@ -112,7 +113,7 @@ The `um-updater.php` client continues to work unchanged:
 
 - Passwords: PBKDF2-SHA256 (100K iterations), auto-upgraded from SHA-256
 - Sessions: HMAC-signed cookies, HttpOnly + Secure + SameSite=Strict
-- Rate limiting: In-memory per-IP (login: 5/min, register: 10/min)
+- Rate limiting: Postgres-backed per-IP (login: 5/min, register: 10/min, download: 60/min)
 - Site keys: SHA-256 hashed in DB, never stored in plaintext
 - Download auth: Group-based, optional domain locking
 - Magic links: SHA-256 hashed tokens, 15-min expiry, single-use
