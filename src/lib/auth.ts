@@ -7,34 +7,51 @@ export interface AuthUser {
   id: number | null;
   email: string;
   display_name: string;
-  role: string;
+  role: string;        // 'owner' | 'admin' | 'viewer'
   via: 'token' | 'session';
   session_id?: string;
   session_expires_at?: string;
 }
 
+/**
+ * Authenticate an admin request. Supports two methods:
+ *
+ * 1. Bearer token: `Authorization: Bearer {ADMIN_TOKEN}`
+ *    Returns a synthetic "owner" user — used by CI/CD, cron, and the WP client.
+ *
+ * 2. Session cookie: `um_session={sessionId}.{hmacSignature}`
+ *    The cookie value is "{session_id}.{hmac_sha256(session_id, ADMIN_TOKEN)}".
+ *    We verify the HMAC first (fast, no DB hit), then look up the session in
+ *    Postgres to check expiry and load the user's role.
+ *
+ * Sessions are auto-refreshed: if more than 50% of the session lifetime has
+ * elapsed, the expiry is silently extended by the full lifetime. This gives
+ * active users a seamless experience without explicit "remember me" renewals.
+ */
 export async function verifyAdmin(request: NextRequest): Promise<AuthUser | null> {
   const adminToken = process.env.ADMIN_TOKEN || '';
   if (!adminToken) return null;
 
-  // Bearer token
+  // Method 1: Bearer token (API/cron access)
   const authHeader = request.headers.get('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
   if (token && token === adminToken) {
     return { id: null, email: 'bearer-token', display_name: 'API Token', role: 'owner', via: 'token' };
   }
 
-  // Session cookie
+  // Method 2: HMAC-signed session cookie
   const cookieStore = await cookies();
   const session = cookieStore.get('um_session')?.value;
   if (!session) return null;
 
+  // Split cookie into session ID and HMAC signature
   const dotIdx = session.indexOf('.');
   if (dotIdx < 0) return null;
 
   const sessionId = session.substring(0, dotIdx);
   const sig = session.substring(dotIdx + 1);
 
+  // Verify the HMAC before hitting the DB (timing-safe)
   const valid = await hmacVerify(sessionId, sig, adminToken);
   if (!valid) return null;
 
@@ -48,7 +65,7 @@ export async function verifyAdmin(request: NextRequest): Promise<AuthUser | null
 
   if (!row) return null;
 
-  // Session refresh: if >50% of lifetime has elapsed, extend
+  // Sliding window refresh: extend session if >50% of lifetime elapsed
   const created = new Date(row.session_created_at).getTime();
   const expires = new Date(row.expires_at).getTime();
   const now = Date.now();
@@ -70,14 +87,17 @@ export async function verifyAdmin(request: NextRequest): Promise<AuthUser | null
   };
 }
 
+/** Check if a user has write access (owner, admin, or API token). */
 export function canWrite(user: AuthUser): boolean {
   return user.role === 'owner' || user.role === 'admin' || user.via === 'token';
 }
 
+/** Check if a user has one of the specified roles. */
 export function requireRole(user: AuthUser, ...roles: string[]): boolean {
   return roles.includes(user.role);
 }
 
+/** Extract the client IP from proxy headers (Vercel sets x-forwarded-for). */
 export function getClientIp(request: NextRequest): string {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||

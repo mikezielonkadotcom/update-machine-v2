@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders });
   }
 
+  // Reject requests with timestamps more than 5 minutes from server time
+  // to prevent replay attacks while tolerating reasonable clock skew
   const serverTime = Math.floor(Date.now() / 1000);
   if (Math.abs(serverTime - timestamp) > 300) {
     return NextResponse.json({ error: 'Timestamp expired' }, { status: 400, headers: corsHeaders });
@@ -40,6 +42,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Site is blocked' }, { status: 403, headers: corsHeaders });
   }
 
+  // HMAC verification: the WordPress client (um-updater.php) signs
+  // "{site_url}|{plugin_slug}|{timestamp}" with the shared REGISTRATION_SECRET.
+  // This proves the request came from a site that knows the secret.
   const secret = process.env.REGISTRATION_SECRET || '';
   if (!secret) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500, headers: corsHeaders });
@@ -48,6 +53,7 @@ export async function POST(request: NextRequest) {
   const message = `${site_url}|${plugin_slug}|${timestamp}`;
   const expectedSig = crypto.createHmac('sha256', secret).update(message).digest('hex');
 
+  // Timing-safe comparison; try/catch handles malformed hex signatures
   let valid: boolean;
   try {
     valid = crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedSig, 'hex'));
@@ -60,7 +66,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 403, headers: corsHeaders });
   }
 
-  // Revoke existing auto keys for this URL
+  // Revoke any existing auto-generated key for this URL before issuing a new one.
+  // This ensures each site has at most one active auto key at a time.
   const existing = await queryOne(
     "SELECT id FROM site_keys WHERE site_url = $1 AND key_type = 'auto' AND is_active = TRUE",
     [normalizedUrl]
