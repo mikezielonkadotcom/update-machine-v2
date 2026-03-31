@@ -13,7 +13,7 @@ export async function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
-  if (rateLimit('register', ip, 10, 60_000)) {
+  if (await rateLimit('register', ip, 10, 60_000)) {
     logWarn({ source: 'register', message: `Rate limit exceeded for IP ${ip}`, request_ip: ip });
     return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429, headers: corsHeaders });
   }

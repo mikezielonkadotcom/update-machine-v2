@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const headers = adminCorsHeaders(origin);
   const ip = getClientIp(request);
 
-  if (rateLimit('invite', ip, 5, 60_000)) {
+  if (await rateLimit('invite', ip, 5, 60_000)) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429, headers });
   }
 

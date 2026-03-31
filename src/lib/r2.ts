@@ -1,4 +1,5 @@
 import { S3Client, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import './env';
 
 const s3 = new S3Client({
   region: 'auto',

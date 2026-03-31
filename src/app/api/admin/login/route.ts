@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const headers = adminCorsHeaders(origin);
   const ip = getClientIp(request);
 
-  if (rateLimit('login', ip, 5, 60_000)) {
+  if (await rateLimit('login', ip, 5, 60_000)) {
     logWarn({ source: 'auth', message: `Login rate limit exceeded for IP ${ip}`, request_ip: ip });
     return NextResponse.json({ error: 'Too many login attempts. Try again later.' }, { status: 429, headers });
   }

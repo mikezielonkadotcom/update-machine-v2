@@ -9,7 +9,28 @@ export const corsHeaders: Record<string, string> = {
   'X-Robots-Tag': 'noindex, nofollow',
 };
 
-export function adminCorsHeaders(origin: string): Record<string, string> {
+/**
+ * Returns CORS headers for admin endpoints.
+ * Validates the request origin against NEXT_PUBLIC_BASE_URL and ALLOWED_ORIGINS.
+ * Falls back to reflecting the request origin in development when no origins are configured.
+ */
+export function adminCorsHeaders(requestOrigin: string): Record<string, string> {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+  const allowedCsv = process.env.ALLOWED_ORIGINS || '';
+
+  const allowed = new Set<string>();
+  if (baseUrl) allowed.add(baseUrl.replace(/\/+$/, ''));
+  for (const o of allowedCsv.split(',')) {
+    const trimmed = o.trim();
+    if (trimmed) allowed.add(trimmed);
+  }
+
+  // If no origins configured (local dev), allow the request origin.
+  // In production NEXT_PUBLIC_BASE_URL should always be set.
+  const origin = allowed.size === 0 || allowed.has(requestOrigin)
+    ? requestOrigin
+    : (allowed.values().next().value ?? requestOrigin);
+
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
@@ -74,9 +95,20 @@ export async function checkDownloadAuth(
   return null;
 }
 
+/**
+ * Cached bootstrap: creates the owner account from env vars if no users exist.
+ * Once it runs successfully (or finds existing users), it won't hit the DB again
+ * for the lifetime of this serverless instance.
+ */
+let bootstrapDone = false;
 export async function bootstrapOwner(): Promise<void> {
+  if (bootstrapDone) return;
+
   const count = await queryOne<{ c: number }>('SELECT COUNT(*) as c FROM users');
-  if (!count || Number(count.c) > 0) return;
+  if (!count || Number(count.c) > 0) {
+    bootstrapDone = true;
+    return;
+  }
 
   const email = process.env.ADMIN_EMAIL || '';
   const legacyHash = process.env.ADMIN_PASSWORD_HASH || '';
@@ -91,4 +123,6 @@ export async function bootstrapOwner(): Promise<void> {
     'INSERT INTO activity_log (user_id, user_email, action, description) VALUES ($1, $2, $3, $4)',
     [null, 'system', 'system.bootstrap', 'Owner account created from environment variables']
   );
+
+  bootstrapDone = true;
 }

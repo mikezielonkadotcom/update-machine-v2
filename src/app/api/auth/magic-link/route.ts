@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const headers = adminCorsHeaders(origin);
   const ip = getClientIp(request);
 
-  if (rateLimit('login', ip, 5, 60_000)) {
+  if (await rateLimit('login', ip, 5, 60_000)) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429, headers });
   }
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   // Rate limit per email
   const emailKey = `magic:${normalizedEmail}`;
-  if (rateLimit('magic-link', emailKey, 3, 15 * 60_000)) {
+  if (await rateLimit('magic-link', emailKey, 3, 15 * 60_000)) {
     return NextResponse.json({ ok: true, message: 'If that email is registered, a login link has been sent.' }, { headers });
   }
 
