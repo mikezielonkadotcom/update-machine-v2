@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
-import { hmacVerify, hmacSign } from './crypto';
+import { hmacVerify } from './crypto';
 import { queryOne, query } from './db';
 
 export interface AuthUser {

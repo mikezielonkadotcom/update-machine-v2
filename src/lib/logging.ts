@@ -22,7 +22,7 @@ export async function logActivity(
         ip || null,
       ]
     );
-  } catch (e) {
+  } catch {
     // Logging must never throw
   }
 }
@@ -54,7 +54,7 @@ export function logError(opts: {
         extraJson,
       ]
     ).catch(() => {});
-  } catch (e) {
+  } catch {
     // Logging must never throw
   }
 }

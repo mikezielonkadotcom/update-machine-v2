@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { queryAll } from '@/lib/db';
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { corsHeaders, extractSiteKey, validateSiteKey, checkDownloadAuth } from '@/lib/helpers';
 import { getObject } from '@/lib/r2';
-import { query, queryOne } from '@/lib/db';
+import { query } from '@/lib/db';
 import { logWarn, logError as logErr } from '@/lib/logging';
 import { getClientIp } from '@/lib/auth';
 import { rateLimit } from '@/lib/rate-limit';

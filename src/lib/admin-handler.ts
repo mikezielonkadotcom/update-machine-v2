@@ -23,7 +23,7 @@ type AdminHandlerFn = (
  *   });
  */
 export function adminHandler(fn: AdminHandlerFn) {
-  return async (request: NextRequest, routeCtx?: any) => {
+  return async (request: NextRequest, _routeCtx?: any) => {
     const origin = new URL(request.url).origin;
     const headers = adminCorsHeaders(origin);
 

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { query } from '@/lib/db';
 import { logActivity } from '@/lib/logging';

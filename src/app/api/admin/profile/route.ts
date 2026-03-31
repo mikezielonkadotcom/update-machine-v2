@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { verifyAndUpgradePassword, hashPassword } from '@/lib/crypto';
 import { query, queryOne } from '@/lib/db';

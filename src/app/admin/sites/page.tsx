@@ -203,7 +203,6 @@ export default function Dashboard() {
     if (activeTab === 'security') loadSessions();
     if (activeTab === 'activity') loadActivity();
     if (activeTab === 'errors') loadErrors();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const loadUsers = async () => {
