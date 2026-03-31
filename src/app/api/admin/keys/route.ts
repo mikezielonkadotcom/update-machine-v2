@@ -1,33 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin, canWrite, getClientIp } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
+import { canWrite } from '@/lib/auth';
 import { hashKey, randomHex } from '@/lib/crypto';
 import { query, queryOne, queryAll } from '@/lib/db';
 import { logActivity } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function GET(request: NextRequest) {
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
-
+export const GET = adminHandler(async (request, user, { headers }) => {
   const keys = await queryAll(`
     SELECT sk.id, sk.site_url, sk.group_id, sk.key_type, sk.domain_locked, sk.is_active, sk.created_at, sk.last_used,
            g.name as group_name, g.slug as group_slug
     FROM site_keys sk LEFT JOIN groups g ON g.id = sk.group_id ORDER BY sk.created_at DESC
   `);
   return NextResponse.json({ keys, count: keys.length }, { headers });
-}
+});
 
-export async function POST(request: NextRequest) {
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const POST = adminHandler(async (request, user, { headers, ip }) => {
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const body = await request.json();
@@ -45,11 +34,10 @@ export async function POST(request: NextRequest) {
 
   const group = await queryOne<any>('SELECT slug, name FROM groups WHERE id = $1', [groupId]);
   const gp = await queryAll<{ plugin_slug: string }>('SELECT plugin_slug FROM group_plugins WHERE group_id = $1', [groupId]);
-  const ip = getClientIp(request);
   await logActivity(user, 'key.create', `Generated license key for group '${group?.name || 'default'}'`, 'site_key', plainKey.slice(0, 8), ip);
 
   return NextResponse.json(
     { site_key: plainKey, group: group?.slug || 'default', plugins: gp.map(r => r.plugin_slug) },
     { status: 201, headers }
   );
-}
+});

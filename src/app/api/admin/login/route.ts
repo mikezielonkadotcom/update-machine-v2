@@ -38,8 +38,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500, headers });
   }
 
-  // Bootstrap owner if needed
-  try { await bootstrapOwner(); } catch {}
+  // Bootstrap owner if needed (creates first owner from env vars)
+  try { await bootstrapOwner(); } catch (e: any) {
+    logError({ source: 'bootstrap', message: `bootstrapOwner failed: ${e.message}`, stack: e.stack });
+  }
 
   const user = await queryOne<any>(
     'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND is_active = TRUE',

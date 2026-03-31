@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin, canWrite, getClientIp } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
+import { canWrite } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { logActivity } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const keyId = parseInt(id);
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const PUT = adminHandler(async (request, user, { headers, ip }) => {
+  const keyId = parseInt(new URL(request.url).pathname.split('/').pop()!);
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const body = await request.json();
@@ -30,22 +23,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   values.push(keyId);
   await query(`UPDATE site_keys SET ${sets.join(', ')} WHERE id = $${paramIdx}`, values);
   const updated = await queryOne('SELECT * FROM site_keys WHERE id = $1', [keyId]);
-  const ip = getClientIp(request);
   await logActivity(user, 'key.update', `Updated key ${keyId}`, 'site_key', String(keyId), ip);
   return NextResponse.json(updated, { headers });
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const keyId = parseInt(id);
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
+  const keyId = parseInt(new URL(request.url).pathname.split('/').pop()!);
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   await query('UPDATE site_keys SET is_active = FALSE WHERE id = $1', [keyId]);
-  const ip = getClientIp(request);
   await logActivity(user, 'key.revoke', `Revoked key ${keyId}`, 'site_key', String(keyId), ip);
   return NextResponse.json({ revoked: true }, { headers });
-}
+});

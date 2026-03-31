@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { listObjects, getObject } from '@/lib/r2';
+import { logError } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function GET(request: NextRequest) {
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
-
+export const GET = adminHandler(async (request, user, { headers }) => {
   const objects = await listObjects();
   const updateJsonKeys = objects.filter(o => o.key.endsWith('/update.json'));
 
@@ -33,10 +26,11 @@ export async function GET(request: NextRequest) {
           tested: data.tested || '', requires: data.requires || '', requires_php: data.requires_php || '',
         });
       }
-    } catch {
+    } catch (e: any) {
+      logError({ source: 'admin', message: e.message });
       plugins.push({ slug, name: slug, version: 'error reading manifest' });
     }
   }
 
   return NextResponse.json({ plugins, count: plugins.length }, { headers });
-}
+});

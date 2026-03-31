@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne, queryAll } from '@/lib/db';
+import { logError } from '@/lib/logging';
 
 export async function GET(request: NextRequest) {
   // Verify cron secret
@@ -12,12 +13,16 @@ export async function GET(request: NextRequest) {
     // Clean up expired magic links
     try {
       await query("DELETE FROM magic_links WHERE expires_at < NOW()");
-    } catch {}
+    } catch (e: any) {
+      logError({ source: 'cron', message: `Failed to clean magic links: ${e.message}` });
+    }
 
     // Clean up expired sessions
     try {
       await query("DELETE FROM sessions WHERE expires_at < NOW()");
-    } catch {}
+    } catch (e: any) {
+      logError({ source: 'cron', message: `Failed to clean sessions: ${e.message}` });
+    }
 
     // Get error digest
     const totalResult = await queryOne<{ c: string }>(

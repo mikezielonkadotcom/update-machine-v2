@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin, canWrite, getClientIp } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
+import { canWrite } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { logActivity } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const groupId = parseInt(id);
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const POST = adminHandler(async (request, user, { headers, ip }) => {
+  const segments = new URL(request.url).pathname.split('/');
+  // URL: /api/admin/groups/[id]/plugins → id is at index -2
+  const groupId = parseInt(segments[segments.length - 2]);
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const body = await request.json();
@@ -25,7 +20,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     [groupId, body.plugin_slug]
   );
   const group = await queryOne<any>('SELECT name FROM groups WHERE id = $1', [groupId]);
-  const ip = getClientIp(request);
   await logActivity(user, 'group.add_plugin', `Added plugin '${body.plugin_slug}' to group '${group?.name}'`, 'group', String(groupId), ip);
   return NextResponse.json({ group_id: groupId, plugin_slug: body.plugin_slug }, { status: 201, headers });
-}
+});

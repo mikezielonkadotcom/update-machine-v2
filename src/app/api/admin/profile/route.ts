@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin, getClientIp } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { verifyAndUpgradePassword, hashPassword } from '@/lib/crypto';
 import { query, queryOne } from '@/lib/db';
 import { logActivity } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function PUT(request: NextRequest) {
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const PUT = adminHandler(async (request, user, { headers, ip }) => {
   if (user.via === 'token') return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const body = await request.json();
@@ -55,7 +48,6 @@ export async function PUT(request: NextRequest) {
     await query('DELETE FROM sessions WHERE user_id = $1 AND id != $2', [user.id, user.session_id]);
   }
 
-  const ip = getClientIp(request);
   await logActivity(user, 'user.profile_update', 'User updated their profile', 'user', String(user.id), ip);
   return NextResponse.json({ ok: true }, { headers });
-}
+});

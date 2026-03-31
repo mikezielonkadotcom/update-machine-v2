@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin, canWrite, getClientIp } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
+import { canWrite } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { logActivity } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const groupId = parseInt(id);
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const PUT = adminHandler(async (request, user, { headers, ip }) => {
+  const segments = new URL(request.url).pathname.split('/');
+  const groupId = parseInt(segments[segments.length - 1]);
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const body = await request.json();
@@ -33,18 +27,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   values.push(groupId);
   await query(`UPDATE groups SET ${sets.join(', ')} WHERE id = $${paramIdx}`, values);
   const updated = await queryOne('SELECT * FROM groups WHERE id = $1', [groupId]);
-  const ip = getClientIp(request);
   await logActivity(user, 'group.update', `Updated group '${updated?.name}'`, 'group', String(groupId), ip);
   return NextResponse.json(updated, { headers });
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const groupId = parseInt(id);
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
+  const segments = new URL(request.url).pathname.split('/');
+  const groupId = parseInt(segments[segments.length - 1]);
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const group = await queryOne<any>('SELECT * FROM groups WHERE id = $1', [groupId]);
@@ -56,7 +45,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   await query('DELETE FROM group_plugins WHERE group_id = $1', [groupId]);
   await query('DELETE FROM groups WHERE id = $1', [groupId]);
-  const ip = getClientIp(request);
   await logActivity(user, 'group.delete', `Deleted group '${group.name}'`, 'group', String(groupId), ip);
   return NextResponse.json({ deleted: true }, { headers });
-}
+});

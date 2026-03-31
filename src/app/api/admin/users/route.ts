@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin, requireRole, getClientIp } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
+import { requireRole } from '@/lib/auth';
 import { sha256Hex, randomHex } from '@/lib/crypto';
 import { query, queryOne, queryAll } from '@/lib/db';
 import { logActivity } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function GET(request: NextRequest) {
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
-
+export const GET = adminHandler(async (request, user, { headers }) => {
   const users = await queryAll(
     'SELECT id, email, display_name, role, is_active, created_at, updated_at FROM users ORDER BY created_at'
   );
@@ -25,13 +18,9 @@ export async function GET(request: NextRequest) {
     ORDER BY i.created_at DESC
   `);
   return NextResponse.json({ users, invites }, { headers });
-}
+});
 
-export async function POST(request: NextRequest) {
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+export const POST = adminHandler(async (request, user, { headers, ip, origin }) => {
   if (user.via === 'token') return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
   if (!requireRole(user, 'owner', 'admin')) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
@@ -59,10 +48,8 @@ export async function POST(request: NextRequest) {
     [normalizedEmail, role, tokenHash, user.id]
   );
 
-  const origin = new URL(request.url).origin;
   const inviteUrl = `${origin}/admin/invite?token=${token}`;
-  const ip = getClientIp(request);
   await logActivity(user, 'user.invite', `Invited ${email} as ${role}`, 'invite', email, ip);
 
   return NextResponse.json({ ok: true, invite_url: inviteUrl, expires_at: '72 hours' }, { status: 201, headers });
-}
+});

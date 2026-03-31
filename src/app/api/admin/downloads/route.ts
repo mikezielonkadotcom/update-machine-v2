@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminCorsHeaders, bootstrapOwner } from '@/lib/helpers';
-import { verifyAdmin } from '@/lib/auth';
+import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { queryOne, queryAll } from '@/lib/db';
+import { logError } from '@/lib/logging';
 
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(new URL(request.url).origin) });
-}
+export { adminOptions as OPTIONS };
 
-export async function GET(request: NextRequest) {
-  const headers = adminCorsHeaders(new URL(request.url).origin);
-  try { await bootstrapOwner(); } catch {}
-  const user = await verifyAdmin(request);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
-
+export const GET = adminHandler(async (request, user, { headers }) => {
   try {
     const url = new URL(request.url);
     const pluginFilter = url.searchParams.get('plugin') || '';
@@ -45,7 +38,8 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({ total, per_plugin: perPlugin, per_version: perVersion, recent }, { headers });
-  } catch {
+  } catch (e: any) {
+    logError({ source: 'admin', message: e.message });
     return NextResponse.json({ total: 0, per_plugin: [], per_version: [], recent: [] }, { headers });
   }
-}
+});
