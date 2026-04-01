@@ -116,7 +116,7 @@ export async function bootstrapOwner(): Promise<void> {
 
   await query(
     'INSERT INTO users (email, display_name, password_hash, role) VALUES ($1, $2, $3, $4)',
-    [email, email, 'sha256:' + legacyHash, 'owner']
+    [email, email, legacyHash.startsWith('sha256:') ? legacyHash : `sha256:${legacyHash}`, 'owner']
   );
 
   await query(
