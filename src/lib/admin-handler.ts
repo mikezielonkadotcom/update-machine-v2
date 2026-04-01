@@ -43,6 +43,11 @@ export function adminHandler(fn: AdminHandlerFn) {
     try {
       return await fn(request, user, { origin, headers, ip });
     } catch (e: any) {
+      const contentType = request.headers.get('content-type') || '';
+      if (e instanceof SyntaxError && contentType.includes('application/json')) {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers });
+      }
+
       logError({
         source: 'admin',
         message: e.message || 'Unhandled admin route error',
