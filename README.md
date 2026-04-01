@@ -81,6 +81,10 @@ All admin endpoints require session cookie or Bearer token.
 
 ## Environment Variables
 
+Two env templates are included:
+- **`.env.local.template`** — Pre-configured for local Docker dev. Copy this for local work: `cp .env.local.template .env.local`
+- **`.env.example`** — Production-style placeholders. Reference this when configuring Vercel/staging.
+
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | Postgres connection string |
@@ -96,6 +100,7 @@ All admin endpoints require session cookie or Bearer token.
 | `SLACK_CHANNEL` | No | Slack channel ID |
 | `CRON_SECRET` | No | Vercel cron auth secret |
 | `NEXT_PUBLIC_BASE_URL` | No | Public URL (defaults to request origin) |
+| `ALLOWED_ORIGINS` | No | Extra CORS origins, comma-separated (in addition to `NEXT_PUBLIC_BASE_URL`) |
 
 ## WordPress Client Compatibility
 
@@ -120,6 +125,7 @@ See **[LOCAL-DEV-SETUP.md](LOCAL-DEV-SETUP.md)** for the complete local dev envi
 3. Run database migrations: `psql $DATABASE_URL < db/001-schema.sql && psql $DATABASE_URL < db/002-rate-limits-and-download-key.sql`
 4. Point `updatemachine.com` DNS to Vercel
 5. Generate R2 API tokens in Cloudflare dashboard
+6. Cron is pre-configured in `vercel.json` — runs `/api/cron/digest` daily to clean expired sessions/magic links and send Slack error digests. Set `CRON_SECRET` to secure the endpoint.
 
 ## Security
 

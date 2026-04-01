@@ -78,11 +78,11 @@ Complete the WP install (first time only):
 
 ```bash
 # Install WP-CLI in the container
-docker exec update-machine-v2-wordpress-1 bash -c \
+docker compose -f docker-compose.dev.yml exec wordpress bash -c \
   'curl -sO https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp'
 
 # Run the install
-docker exec update-machine-v2-wordpress-1 wp core install \
+docker compose -f docker-compose.dev.yml exec wordpress wp core install \
   --url="http://localhost:8082" \
   --title="UM Test Site" \
   --admin_user=admin \
@@ -92,7 +92,7 @@ docker exec update-machine-v2-wordpress-1 wp core install \
   --allow-root
 
 # Set the registration secret (must match .env.local)
-docker exec update-machine-v2-wordpress-1 wp config set \
+docker compose -f docker-compose.dev.yml exec wordpress wp config set \
   UM_REGISTRATION_SECRET 'local-dev-registration-secret' \
   --type=constant --allow-root
 ```
@@ -102,7 +102,7 @@ docker exec update-machine-v2-wordpress-1 wp config set \
 WordPress blocks downloads from non-standard hostnames by default. Install this mu-plugin to allow `update-machine.local`:
 
 ```bash
-docker exec update-machine-v2-wordpress-1 bash -c 'mkdir -p /var/www/html/wp-content/mu-plugins && cat > /var/www/html/wp-content/mu-plugins/allow-local-updates.php << "EOF"
+docker compose -f docker-compose.dev.yml exec wordpress bash -c 'mkdir -p /var/www/html/wp-content/mu-plugins && cat > /var/www/html/wp-content/mu-plugins/allow-local-updates.php << "EOF"
 <?php
 /**
  * Allow WordPress to download from update-machine.local (dev only).
@@ -205,18 +205,18 @@ curl http://update-machine.local:3100/macros-block/update.json
 ```bash
 # Install v1.9.3 on WordPress
 docker cp /tmp/macros-block-1.9.3.zip update-machine-v2-wordpress-1:/tmp/
-docker exec update-machine-v2-wordpress-1 wp plugin install /tmp/macros-block-1.9.3.zip --activate --allow-root
+docker compose -f docker-compose.dev.yml exec wordpress wp plugin install /tmp/macros-block-1.9.3.zip --activate --allow-root
 
 # Trigger update check
-docker exec update-machine-v2-wordpress-1 wp transient delete --all --allow-root
-docker exec update-machine-v2-wordpress-1 wp cron event run wp_update_plugins --allow-root
+docker compose -f docker-compose.dev.yml exec wordpress wp transient delete --all --allow-root
+docker compose -f docker-compose.dev.yml exec wordpress wp cron event run wp_update_plugins --allow-root
 
 # Verify WP sees the update
-docker exec update-machine-v2-wordpress-1 wp plugin list --allow-root
+docker compose -f docker-compose.dev.yml exec wordpress wp plugin list --allow-root
 # Should show: macros-block  active  available  1.9.3  1.9.4
 
 # Run the update!
-docker exec update-machine-v2-wordpress-1 wp plugin update macros-block --allow-root
+docker compose -f docker-compose.dev.yml exec wordpress wp plugin update macros-block --allow-root
 # Should show: macros-block  1.9.3  1.9.4  Updated
 ```
 
@@ -224,11 +224,11 @@ docker exec update-machine-v2-wordpress-1 wp plugin update macros-block --allow-
 
 ```bash
 # Check site analytics recorded
-docker exec update-machine-v2-postgres-1 psql -U um_dev -d update_machine \
+docker compose -f docker-compose.dev.yml exec postgres psql -U um_dev -d update_machine \
   -c "SELECT site_url, site_name, plugin_slug, plugin_version, check_count FROM sites;"
 
 # Check download logs
-docker exec update-machine-v2-postgres-1 psql -U um_dev -d update_machine \
+docker compose -f docker-compose.dev.yml exec postgres psql -U um_dev -d update_machine \
   -c "SELECT plugin_slug, plugin_version, user_agent, created_at FROM download_log ORDER BY id DESC LIMIT 5;"
 ```
 

@@ -1,6 +1,6 @@
-# Update Machine — User Guide
+# Update Machine - User Guide
 
-Update Machine is a private release server for WordPress plugins. It handles update distribution, site registration, download authentication, and analytics — so your plugins can self-update outside of wordpress.org.
+Update Machine is a private release server for WordPress plugins. It handles update distribution, site registration, download authentication, and analytics - so your plugins can self-update outside of wordpress.org.
 
 ## Table of Contents
 
@@ -46,7 +46,7 @@ Update Machine is a private release server for WordPress plugins. It handles upd
 | Term | What It Is |
 |------|-----------|
 | **Plugin** | A WordPress plugin distributed through Update Machine. Each plugin has a slug (e.g. `macros-block`) and files stored in R2/S3. |
-| **Update Manifest** | A JSON file (`update.json`) that describes the latest version of a plugin — version number, download URL, requirements, changelog. |
+| **Update Manifest** | A JSON file (`update.json`) that describes the latest version of a plugin - version number, download URL, requirements, changelog. |
 | **Site Key** | A credential that identifies a WordPress site. Can be auto-generated on registration or manually created as a license key. |
 | **Group** | A collection of plugins with shared access rules. Sites get assigned to a group, and that group determines which plugins they can access. |
 | **um-updater.php** | The drop-in PHP client that WordPress plugins include to check for updates from Update Machine. |
@@ -61,9 +61,9 @@ Navigate to `/logmein` on your Update Machine instance (e.g. `https://updatemach
 
 **Two ways to log in:**
 
-1. **Email + Password** — Enter your credentials and click **Log In**. Check "Remember me for 30 days" for a longer session (default is 7 days).
+1. **Email + Password** - Enter your credentials and click **Log In**. Check "Remember me for 30 days" for a longer session (default is 7 days).
 
-2. **Magic Link** — Enter your email and click **Send me a login link**. A one-time login link is delivered via Slack (if configured). The link expires in 15 minutes.
+2. **Magic Link** — Enter your email and click **Send me a login link**. A one-time login link is delivered via **Slack DM** (requires `SLACK_BOT_TOKEN` and `SLACK_CHANNEL` to be configured). The link expires in 15 minutes. Note: magic links are not sent via email — Slack is the only delivery channel.
 
 After logging in, you're redirected to the **Sites** dashboard at `/admin/sites`.
 
@@ -75,15 +75,17 @@ The admin dashboard (`/admin/sites`) is a single-page app with tabbed navigation
 
 | Tab | What It Shows |
 |-----|--------------|
-| **Sites** | All WordPress sites that have checked in — URL, plugin, version, last seen, check count |
-| **Plugins** | All plugins in R2 storage — name, version, requirements, tested-up-to |
-| **Keys** | Site keys (both auto-generated and manual license keys) — key type, site URL, group, status |
-| **Groups** | Plugin groups with auth settings — which plugins belong to which group, key requirements |
-| **Users** | Team members — email, role, status |
-| **Downloads** | Download log — who downloaded what, when, from where |
-| **Activity** | Audit trail — logins, key creation, group changes, etc. |
-| **Errors** | Server error log for debugging |
+| **Sites** | All WordPress sites that have checked in - URL, plugin, version, last seen, check count |
+| **Plugins** | All plugins in R2 storage - name, version, requirements, tested-up-to |
+| **Groups** | Plugin groups with auth settings - which plugins belong to which group, key requirements |
+| **Keys** | Site keys (both auto-generated and manual license keys) - key type, site URL, group, status |
 | **Blocklist** | Blocked domains that can't register or download |
+| **Users** | Team members - email, role, status |
+| **Downloads** | Download log - who downloaded what, when, from where |
+| **Activity** | Audit trail - logins, key creation, group changes, etc. |
+| **Errors** | Server error log for debugging |
+| **Security** | Active sessions - who's logged in, session expiry, revoke sessions |
+| **Profile** | Your account - display name, password change |
 
 The top of the dashboard shows summary stats: total sites, active keys, plugins tracked, and downloads.
 
@@ -110,7 +112,7 @@ update-machine-releases/
 
 To add a new plugin:
 
-1. **Build a production zip** of your plugin (no dev files — no `node_modules`, `vendor`, `.git`, source files, etc.)
+1. **Build a production zip** of your plugin (no dev files - no `node_modules`, `vendor`, `.git`, source files, etc.)
 2. **Create an `update.json` manifest** (see format below)
 3. **Upload both files** to R2 under `{plugin-slug}/`
 
@@ -212,7 +214,7 @@ Registration happens **automatically** on plugin activation:
 3. Update Machine validates the signature, creates a site record, and returns a **site key**
 4. The site key is stored in `wp_options` as `um_site_key_{slug}`
 
-The HMAC signature uses a shared secret (`UM_REGISTRATION_SECRET`) that proves the request is legitimate. The default secret is WordPress's `AUTH_KEY` constant — unique per install, requires no manual setup.
+The HMAC signature uses a shared secret (`UM_REGISTRATION_SECRET`) that proves the request is legitimate. The default secret is WordPress's `AUTH_KEY` constant - unique per install, requires no manual setup.
 
 **For enhanced security**, set a custom secret in `wp-config.php`:
 ```php
@@ -262,12 +264,12 @@ Manual keys start with `umsk_m_` and can be:
 - Left unbound so the customer can use it on any site
 - Revoked at any time from the dashboard
 
-**Give the key to your customer.** They add it to `wp-config.php`:
-```php
-define( 'UM_SITE_KEY_your_plugin_slug', 'umsk_m_abc123...' );
-```
+**Give the key to your customer.** The plugin should provide a settings page where users paste their key. The key is stored in `wp_options` as `um_site_key_{slug}` and included in all update check requests via the `X-Update-Key` header.
 
-Or the plugin can provide a settings page where users paste their key (implementation is up to the plugin author).
+For plugins using `um-updater.php`, you can set the key programmatically:
+```php
+update_option( 'um_site_key_your-plugin-slug', 'umsk_m_abc123...' );
+```
 
 ### Requiring Keys for Downloads
 
@@ -309,10 +311,10 @@ Sites in the "Default" group can download macros-block and link-leash without a 
 1. Go to the **Groups** tab
 2. Click **Create Group**
 3. Set:
-   - **Name** — Display name (e.g. "Pro Bundle")
-   - **Slug** — URL-safe identifier (e.g. `pro-bundle`)
-   - **Auth Mode** — How sites authenticate (see below)
-   - **Require Key** — Whether downloads require a site key
+   - **Name** - Display name (e.g. "Pro Bundle")
+   - **Slug** - URL-safe identifier (e.g. `pro-bundle`)
+   - **Auth Mode** - How sites authenticate (see below)
+   - **Require Key** - Whether downloads require a site key
 
 ### Assigning Plugins to Groups
 
@@ -328,7 +330,7 @@ A plugin can belong to multiple groups (e.g. a plugin could be in both "Free" an
 | `license-key` | Sites must present a manually-issued key for this group |
 | `both` | Either auto-registration or manual key works |
 
-The default group uses `auto` mode — sites register themselves and get access without any manual key distribution.
+The default group uses `auto` mode - sites register themselves and get access without any manual key distribution.
 
 ---
 
@@ -338,9 +340,9 @@ The default group uses `auto` mode — sites register themselves and get access 
 
 | Role | Permissions |
 |------|------------|
-| **Owner** | Full access — manage users, keys, groups, blocklist, everything |
+| **Owner** | Full access - manage users, keys, groups, blocklist, everything |
 | **Admin** | Full access except user management |
-| **Viewer** | Read-only — can view sites, plugins, logs, but can't change anything |
+| **Viewer** | Read-only - can view sites, plugins, logs, but can't change anything |
 
 ### Inviting Team Members
 
@@ -360,13 +362,13 @@ The invite link goes to `/admin/invite?token=...` where they complete registrati
 
 The **Sites** tab shows every WordPress site that has checked in:
 
-- **Site URL** — The WordPress site's URL
-- **Site Name** — Blog name (from `bloginfo`)
-- **Plugin** — Which plugin they're checking
-- **Version** — Their installed version
-- **Last Seen** — When they last checked for updates
-- **Check Count** — Total number of update checks
-- **Group** — Which group they belong to
+- **Site URL** - The WordPress site's URL
+- **Site Name** - Blog name (from `bloginfo`)
+- **Plugin** - Which plugin they're checking
+- **Version** - Their installed version
+- **Last Seen** - When they last checked for updates
+- **Check Count** - Total number of update checks
+- **Group** - Which group they belong to
 
 This data comes from the telemetry payload that `um-updater.php` sends with each update check.
 
@@ -422,6 +424,12 @@ Update Machine enforces per-IP rate limits:
 | Zip downloads | 60 per minute |
 
 Exceeding limits returns a `429 Too Many Requests` response.
+
+### Download URL Validation
+
+`um-updater.php` includes a built-in safety check: it validates that download URLs point to the configured Update Machine server before downloading. This prevents a compromised manifest from redirecting downloads to a malicious host.
+
+If a `download_url` in `update.json` doesn't match the plugin's configured `server` URL, the download is blocked.
 
 ### SHA-256 Integrity Checks
 
