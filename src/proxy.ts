@@ -23,8 +23,12 @@ export default function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Login endpoint must be accessible without auth
-  if (pathname === '/api/admin/login') {
+  // Public endpoints that must be accessible without auth
+  if (
+    pathname === '/api/admin/login' ||
+    pathname === '/api/admin/invite' ||
+    pathname === '/api/admin/users/accept-invite'
+  ) {
     return NextResponse.next();
   }
 
