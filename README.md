@@ -101,6 +101,69 @@ The `um-updater.php` client continues to work unchanged:
 - Same HMAC registration flow
 - Same response JSON format
 
+## Local Development
+
+### Prerequisites
+
+- Docker & Docker Compose
+- Node.js 18+
+- npm
+
+### Quick Start (Docker)
+
+1. **Start the Docker stack** (Postgres, WordPress, MySQL, MinIO):
+   ```bash
+   docker compose -f docker-compose.dev.yml up -d
+   ```
+
+2. **Set up environment variables**:
+   ```bash
+   cp .env.local.template .env.local
+   ```
+   The template is pre-configured for the Docker stack — no edits needed for basic dev.
+
+3. **Install dependencies and run**:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+4. **Access services**:
+   | Service | URL |
+   |---------|-----|
+   | Next.js app | http://localhost:3000 |
+   | WordPress | http://localhost:8080 |
+   | MinIO console | http://localhost:9001 (minioadmin/minioadmin) |
+   | Postgres | localhost:5432 |
+
+5. **Default admin login**: `admin@localhost` / `admin`
+
+### Services
+
+| Container | Purpose |
+|-----------|---------|
+| `postgres` | App database (auto-runs schema migrations on first start) |
+| `mysql` | WordPress database |
+| `wordpress` | WordPress instance for testing plugin update checks |
+| `minio` | S3-compatible storage (replaces Cloudflare R2 locally) |
+
+### Reset
+
+```bash
+# Stop and remove all containers + data
+docker compose -f docker-compose.dev.yml down -v
+
+# Restart fresh
+docker compose -f docker-compose.dev.yml up -d
+```
+
+### Testing Against WordPress
+
+1. Access WordPress at http://localhost:8080 and complete the install wizard
+2. Install the `um-updater.php` client plugin
+3. Configure it to point at `http://host.docker.internal:3000` (or `http://localhost:3000` if running WordPress outside Docker)
+4. Set the registration secret to match `REGISTRATION_SECRET` in `.env.local`
+
 ## Deployment
 
 1. Connect repo to Vercel
