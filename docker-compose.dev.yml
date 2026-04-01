@@ -1,0 +1,102 @@
+# Update Machine v2 — Local Development Stack
+# Usage: docker compose -f docker-compose.dev.yml up -d
+# Then:  npm run dev  (from host, or use the nextjs service below)
+
+services:
+  # ─── Postgres (app database) ──────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: update_machine
+      POSTGRES_USER: um_dev
+      POSTGRES_PASSWORD: um_dev_password
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/001-schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./db/002-rate-limits-and-download-key.sql:/docker-entrypoint-initdb.d/002-rate-limits-and-download-key.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U um_dev -d update_machine"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── MySQL (WordPress database) ───────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: wp_root_password
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp_user
+      MYSQL_PASSWORD: wp_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uwp_user", "-pwp_password"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── WordPress (for testing plugin update checks) ─────────────────
+  wordpress:
+    image: wordpress:6-apache
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    environment:
+      WORDPRESS_DB_HOST: mysql
+      WORDPRESS_DB_USER: wp_user
+      WORDPRESS_DB_PASSWORD: wp_password
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: "1"
+    extra_hosts:
+      - "update-machine.local:host-gateway"
+    volumes:
+      - wp_data:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # ─── MinIO (S3-compatible R2 replacement) ─────────────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── MinIO bucket init ────────────────────────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/update-machine-releases &&
+      echo 'Bucket ready'
+      "
+    restart: "no"
+
+volumes:
+  pg_data:
+  mysql_data:
+  wp_data:
+  minio_data:
