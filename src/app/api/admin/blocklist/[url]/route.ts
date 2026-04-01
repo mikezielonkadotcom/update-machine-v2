@@ -10,7 +10,11 @@ export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
   const siteUrl = decodeURIComponent(new URL(request.url).pathname.split('/').pop()!);
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
-  await query('DELETE FROM blocklist WHERE site_url = $1', [siteUrl]);
+  const result = await query('DELETE FROM blocklist WHERE site_url = $1', [siteUrl]);
+  if (!result.rowCount) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404, headers });
+  }
+
   await logActivity(user, 'blocklist.remove', `Unblocked domain '${siteUrl}'`, 'blocklist', siteUrl, ip);
   return NextResponse.json({ unblocked: true }, { headers });
 });
