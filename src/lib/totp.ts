@@ -4,6 +4,12 @@ import * as QRCode from 'qrcode';
 
 const ISSUER = 'Update Machine';
 const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ENCRYPTION_PREFIX = 'enc:v1';
+
+function deriveTotpKey(): Buffer {
+  const keyMaterial = process.env.TOTP_ENCRYPTION_KEY || process.env.ADMIN_TOKEN || 'update-machine-default-totp-key';
+  return crypto.createHash('sha256').update(keyMaterial).digest();
+}
 
 export function generateTOTPSecret(): string {
   const secret = new Secret({ size: 20 });
@@ -59,6 +65,40 @@ export function normalizeTOTPCode(code: string): string {
 
 export function normalizeRecoveryCode(code: string): string {
   return code.replace(/\s+/g, '').replace(/-/g, '').toUpperCase();
+}
+
+export function encryptTOTPSecret(secret: string): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', deriveTotpKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [
+    ENCRYPTION_PREFIX,
+    iv.toString('base64'),
+    tag.toString('base64'),
+    encrypted.toString('base64'),
+  ].join(':');
+}
+
+export function decryptTOTPSecret(encryptedOrPlainSecret: string): string {
+  if (!encryptedOrPlainSecret) return '';
+  if (!encryptedOrPlainSecret.startsWith(`${ENCRYPTION_PREFIX}:`)) {
+    // Backward compatibility for pre-encryption plaintext rows.
+    return encryptedOrPlainSecret;
+  }
+
+  const [prefix, version, ivB64, tagB64, encryptedB64] = encryptedOrPlainSecret.split(':');
+  if (`${prefix}:${version}` !== ENCRYPTION_PREFIX || !ivB64 || !tagB64 || !encryptedB64) {
+    throw new Error('Invalid encrypted TOTP secret format');
+  }
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', deriveTotpKey(), Buffer.from(ivB64, 'base64'));
+  decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(encryptedB64, 'base64')),
+    decipher.final(),
+  ]);
+  return decrypted.toString('utf8');
 }
 
 export async function hashRecoveryCode(code: string): Promise<string> {

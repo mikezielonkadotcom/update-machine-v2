@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { query, queryOne } from '@/lib/db';
 import {
+  decryptTOTPSecret,
   generateRecoveryCodes,
   hashRecoveryCode,
   normalizeTOTPCode,
@@ -27,7 +28,14 @@ export const POST = adminHandler(async (request, user, { headers, ip }) => {
   if (dbUser.totp_enabled) return NextResponse.json({ error: '2FA is already enabled' }, { status: 400, headers });
   if (!dbUser.totp_secret) return NextResponse.json({ error: 'No 2FA setup in progress' }, { status: 400, headers });
 
-  if (!verifyTOTPCode(dbUser.totp_secret, user.email, code)) {
+  let decryptedSecret: string;
+  try {
+    decryptedSecret = decryptTOTPSecret(dbUser.totp_secret);
+  } catch {
+    return NextResponse.json({ error: 'Invalid 2FA setup secret' }, { status: 400, headers });
+  }
+
+  if (!verifyTOTPCode(decryptedSecret, user.email, code)) {
     return NextResponse.json({ error: 'Invalid verification code' }, { status: 400, headers });
   }
 

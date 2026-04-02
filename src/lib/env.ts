@@ -15,6 +15,12 @@ const required = [
   'ADMIN_TOKEN',
 ] as const;
 
+const optional = [
+  'SESSION_SECRET',
+  'TOTP_ENCRYPTION_KEY',
+  'CRON_SECRET',
+] as const;
+
 const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
 
 if (!isBuildPhase && process.env.NODE_ENV !== 'test') {
@@ -24,5 +30,11 @@ if (!isBuildPhase && process.env.NODE_ENV !== 'test') {
       `Missing required environment variables: ${missing.join(', ')}. ` +
       'Check .env.local or your Vercel environment settings.'
     );
+  }
+
+  for (const key of optional) {
+    if (!process.env[key]) {
+      console.warn(`Optional environment variable is not set: ${key}`);
+    }
   }
 }

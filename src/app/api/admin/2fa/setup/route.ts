@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { query, queryOne } from '@/lib/db';
-import { generateQRCodeDataURL, generateTOTPSecret } from '@/lib/totp';
+import { encryptTOTPSecret, generateQRCodeDataURL, generateTOTPSecret } from '@/lib/totp';
 import { logActivity } from '@/lib/logging';
 
 export { adminOptions as OPTIONS };
@@ -20,6 +20,7 @@ export const POST = adminHandler(async (_request, user, { headers, ip }) => {
   }
 
   const secret = generateTOTPSecret();
+  const encryptedSecret = encryptTOTPSecret(secret);
   const qrCode = await generateQRCodeDataURL(secret, user.email);
 
   await query(
@@ -30,7 +31,7 @@ export const POST = adminHandler(async (_request, user, { headers, ip }) => {
          totp_recovery_codes = NULL,
          updated_at = NOW()
      WHERE id = $2`,
-    [secret, user.id],
+    [encryptedSecret, user.id],
   );
 
   await logActivity(user, 'user.2fa_setup_start', 'Started TOTP 2FA setup', 'user', String(user.id), ip);

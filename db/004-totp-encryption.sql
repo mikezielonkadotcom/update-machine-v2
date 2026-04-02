@@ -1,0 +1,6 @@
+-- Migration 004: Document TOTP secret encryption-at-rest semantics
+-- Run: psql $DATABASE_URL < db/004-totp-encryption.sql
+--
+-- No schema change is required. The existing `users.totp_secret` TEXT column
+-- now stores an AES-256-GCM encrypted payload string instead of plaintext
+-- Base32 secrets for all newly written values.

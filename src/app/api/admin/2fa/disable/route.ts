@@ -4,6 +4,7 @@ import { verifyAndUpgradePassword } from '@/lib/crypto';
 import { query, queryOne } from '@/lib/db';
 import {
   consumeRecoveryCode,
+  decryptTOTPSecret,
   normalizeTOTPCode,
   verifyTOTPCode,
 } from '@/lib/totp';
@@ -53,7 +54,11 @@ export const POST = adminHandler(async (request, user, { headers, ip }) => {
 
   let validCode = false;
   if (dbUser.totp_secret) {
-    validCode = verifyTOTPCode(dbUser.totp_secret, dbUser.email, code);
+    try {
+      validCode = verifyTOTPCode(decryptTOTPSecret(dbUser.totp_secret), dbUser.email, code);
+    } catch {
+      validCode = false;
+    }
   }
 
   if (!validCode) {

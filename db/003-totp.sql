@@ -2,6 +2,7 @@
 -- Run: psql $DATABASE_URL < db/003-totp.sql
 
 -- Add TOTP columns to users table
+-- NOTE: As of migration 004, this column stores encrypted payloads at rest.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_verified_at TIMESTAMPTZ;
