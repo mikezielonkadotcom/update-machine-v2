@@ -7,13 +7,13 @@ import { logActivity } from '@/lib/logging';
 import { getClientIp } from '@/lib/auth';
 
 export async function OPTIONS(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(origin) });
+  const requestOrigin = request.headers.get('Origin') || '';
+  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(requestOrigin) });
 }
 
 export async function POST(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  const headers = adminCorsHeaders(origin);
+  const requestOrigin = request.headers.get('Origin') || '';
+  const headers = adminCorsHeaders(requestOrigin);
   const ip = getClientIp(request);
 
   if (await rateLimit('invite', ip, 5, 60_000)) {

@@ -14,28 +14,43 @@ export const corsHeaders: Record<string, string> = {
  * Validates the request origin against NEXT_PUBLIC_BASE_URL and ALLOWED_ORIGINS.
  * Falls back to reflecting the request origin in development when no origins are configured.
  */
+function normalizeOrigin(rawOrigin: string): string {
+  if (!rawOrigin) return '';
+  try {
+    return new URL(rawOrigin).origin;
+  } catch {
+    return '';
+  }
+}
+
 export function adminCorsHeaders(requestOrigin: string): Record<string, string> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
   const allowedCsv = process.env.ALLOWED_ORIGINS || '';
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
   const allowed = new Set<string>();
-  if (baseUrl) allowed.add(baseUrl.replace(/\/+$/, ''));
+  const normalizedBaseUrl = normalizeOrigin(baseUrl);
+  if (normalizedBaseUrl) allowed.add(normalizedBaseUrl);
   for (const o of allowedCsv.split(',')) {
-    const trimmed = o.trim();
-    if (trimmed) allowed.add(trimmed);
+    const normalized = normalizeOrigin(o.trim());
+    if (normalized) allowed.add(normalized);
   }
 
-  // If no origins configured (local dev), allow the request origin.
-  // In production NEXT_PUBLIC_BASE_URL should always be set.
-  const origin = allowed.size === 0 || allowed.has(requestOrigin)
-    ? requestOrigin
-    : (allowed.values().next().value ?? requestOrigin);
+  const normalizedRequestOrigin = normalizeOrigin(requestOrigin);
+  let origin = 'null';
+
+  if (normalizedRequestOrigin && allowed.has(normalizedRequestOrigin)) {
+    origin = normalizedRequestOrigin;
+  } else if (allowed.size === 0 && isDevelopment && normalizedRequestOrigin) {
+    origin = normalizedRequestOrigin;
+  }
 
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Update-Key',
     'Access-Control-Allow-Credentials': 'true',
+    Vary: 'Origin',
     'X-Robots-Tag': 'noindex, nofollow',
   };
 }
@@ -80,8 +95,9 @@ export async function checkDownloadAuth(
 
   if (keyRow.domain_locked && keyRow.site_url) {
     const origin = request.headers.get('Origin') || request.headers.get('Referer') || '';
-    const normalizedOrigin = origin.replace(/\/+$/, '');
-    if (!normalizedOrigin.startsWith(keyRow.site_url)) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const normalizedSiteOrigin = normalizeOrigin(keyRow.site_url);
+    if (!normalizedOrigin || !normalizedSiteOrigin || normalizedOrigin !== normalizedSiteOrigin) {
       return { status: 403, message: 'Forbidden: key is domain-locked' };
     }
   }

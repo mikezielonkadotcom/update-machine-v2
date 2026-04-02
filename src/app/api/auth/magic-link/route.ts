@@ -7,13 +7,13 @@ import { logActivity, logWarn } from '@/lib/logging';
 import { getClientIp } from '@/lib/auth';
 
 export async function OPTIONS(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(origin) });
+  const requestOrigin = request.headers.get('Origin') || '';
+  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(requestOrigin) });
 }
 
 export async function POST(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  const headers = adminCorsHeaders(origin);
+  const requestOrigin = request.headers.get('Origin') || '';
+  const headers = adminCorsHeaders(requestOrigin);
   const ip = getClientIp(request);
 
   if (await rateLimit('login', ip, 5, 60_000)) {
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
   }
 
   const response: any = { ok: true, message: 'If that email is registered, a login link has been sent.' };
-  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
+  const isLocalhost = (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') && process.env.NODE_ENV === 'development';
   if (isLocalhost) {
     response.magic_link = magicUrl;
   }

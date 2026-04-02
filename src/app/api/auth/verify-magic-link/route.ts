@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sha256Hex, hmacSign, randomHex } from '@/lib/crypto';
 import { query, queryOne } from '@/lib/db';
 import { logActivity } from '@/lib/logging';
-import { getClientIp } from '@/lib/auth';
+import { getClientIp, getSessionSecret } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     [sessionId, link.uid]
   );
 
-  const signature = await hmacSign(sessionId, adminToken);
+  const signature = await hmacSign(sessionId, getSessionSecret());
   const cookieValue = `${sessionId}.${signature}`;
   const sessionMaxAge = 7 * 86400;
 

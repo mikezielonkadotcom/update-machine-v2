@@ -4,8 +4,8 @@ import { queryOne } from '@/lib/db';
 import { adminCorsHeaders } from '@/lib/helpers';
 
 export async function GET(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  const headers = adminCorsHeaders(origin);
+  const requestOrigin = request.headers.get('Origin') || '';
+  const headers = adminCorsHeaders(requestOrigin);
   const url = new URL(request.url);
   const token = url.searchParams.get('token') || '';
 
