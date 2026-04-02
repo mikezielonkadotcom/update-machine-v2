@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx eslint .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --reporter=verbose
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+    env:
+      DATABASE_URL: 'postgresql://dummy:dummy@localhost/dummy'
+      ADMIN_TOKEN: 'ci-test-token'
+      ADMIN_EMAIL: 'ci@test.com'
+      ADMIN_PASSWORD_HASH: 'sha256:dummy'
+      NEXT_PUBLIC_BASE_URL: 'http://localhost:3000'
+      R2_ACCESS_KEY_ID: 'dummy'
+      R2_SECRET_ACCESS_KEY: 'dummy'
+      R2_ENDPOINT: 'https://dummy.r2.cloudflarestorage.com'
+      R2_BUCKET: 'dummy'
