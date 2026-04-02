@@ -14,7 +14,7 @@ type AdminHandlerFn = (
  * Wraps an admin route handler with the standard boilerplate:
  * 1. CORS headers from allowlisted origins
  * 2. bootstrapOwner() (cached after first success)
- * 3. Session/token auth via verifyAdmin()
+ * 3. Session/token auth via verifyAdmin() (Bearer token intentionally maps to owner access)
  * 4. Structured error logging on unhandled exceptions
  *
  * Usage:
@@ -25,7 +25,8 @@ type AdminHandlerFn = (
 export function adminHandler(fn: AdminHandlerFn) {
   return async (request: NextRequest, _routeCtx?: any) => {
     const origin = new URL(request.url).origin;
-    const headers = adminCorsHeaders(origin);
+    const requestOrigin = request.headers.get('Origin') || '';
+    const headers = adminCorsHeaders(requestOrigin);
 
     try {
       await bootstrapOwner();
@@ -63,6 +64,6 @@ export function adminHandler(fn: AdminHandlerFn) {
 
 /** Standard OPTIONS handler for admin routes */
 export function adminOptions(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(origin) });
+  const requestOrigin = request.headers.get('Origin') || '';
+  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(requestOrigin) });
 }

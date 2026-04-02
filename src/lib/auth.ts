@@ -13,6 +13,12 @@ export interface AuthUser {
   session_expires_at?: string;
 }
 
+const MAX_SESSION_ABSOLUTE_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000;
+
+export function getSessionSecret(): string {
+  return process.env.SESSION_SECRET || process.env.ADMIN_TOKEN || '';
+}
+
 /**
  * Authenticate an admin request. Supports two methods:
  *
@@ -20,7 +26,7 @@ export interface AuthUser {
  *    Returns a synthetic "owner" user — used by CI/CD, cron, and the WP client.
  *
  * 2. Session cookie: `um_session={sessionId}.{hmacSignature}`
- *    The cookie value is "{session_id}.{hmac_sha256(session_id, ADMIN_TOKEN)}".
+ *    The cookie value is "{session_id}.{hmac_sha256(session_id, SESSION_SECRET)}".
  *    We verify the HMAC first (fast, no DB hit), then look up the session in
  *    Postgres to check expiry and load the user's role.
  *
@@ -31,11 +37,14 @@ export interface AuthUser {
 export async function verifyAdmin(request: NextRequest): Promise<AuthUser | null> {
   const adminToken = process.env.ADMIN_TOKEN || '';
   if (!adminToken) return null;
+  const sessionSecret = getSessionSecret();
+  if (!sessionSecret) return null;
 
   // Method 1: Bearer token (API/cron access)
   const authHeader = request.headers.get('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
   if (token && token === adminToken) {
+    // By design, ADMIN_TOKEN maps to owner-equivalent access for machine-to-machine workflows.
     return { id: null, email: 'bearer-token', display_name: 'API Token', role: 'owner', via: 'token' };
   }
 
@@ -52,7 +61,7 @@ export async function verifyAdmin(request: NextRequest): Promise<AuthUser | null
   const sig = session.substring(dotIdx + 1);
 
   // Verify the HMAC before hitting the DB (timing-safe)
-  const valid = await hmacVerify(sessionId, sig, adminToken);
+  const valid = await hmacVerify(sessionId, sig, sessionSecret);
   if (!valid) return null;
 
   const row = await queryOne<any>(
@@ -65,15 +74,22 @@ export async function verifyAdmin(request: NextRequest): Promise<AuthUser | null
 
   if (!row) return null;
 
-  // Sliding window refresh: extend session if >50% of lifetime elapsed
+  // Sliding window refresh: extend session if >50% of lifetime elapsed,
+  // but never past the max absolute session lifetime.
   const created = new Date(row.session_created_at).getTime();
   const expires = new Date(row.expires_at).getTime();
   const now = Date.now();
+  if (now - created > MAX_SESSION_ABSOLUTE_LIFETIME_MS) {
+    await query('DELETE FROM sessions WHERE id = $1', [sessionId]);
+    return null;
+  }
+
   const totalLifetime = expires - created;
   const elapsed = now - created;
   if (elapsed > totalLifetime * 0.5) {
     const newExpiry = new Date(now + totalLifetime).toISOString();
-    query('UPDATE sessions SET expires_at = $1 WHERE id = $2', [newExpiry, sessionId]).catch(() => {});
+    query('UPDATE sessions SET expires_at = $1 WHERE id = $2', [newExpiry, sessionId])
+      .catch((e: Error) => console.warn('Session refresh failed:', e.message));
   }
 
   return {
