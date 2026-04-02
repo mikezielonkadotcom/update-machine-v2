@@ -16,7 +16,8 @@ export async function rateLimit(
   limiterName: string,
   key: string,
   maxAttempts: number,
-  windowMs: number
+  windowMs: number,
+  failClosed: boolean = false,
 ): Promise<boolean> {
   try {
     const windowSeconds = Math.ceil(windowMs / 1000);
@@ -51,7 +52,7 @@ export async function rateLimit(
     return (result?.attempt_count ?? 0) > maxAttempts;
   } catch {
     // If the rate_limits table doesn't exist yet or DB is down,
-    // fail open to avoid blocking legitimate traffic
-    return false;
+    // fail open by default; auth endpoints can opt into fail-closed mode.
+    return failClosed;
   }
 }

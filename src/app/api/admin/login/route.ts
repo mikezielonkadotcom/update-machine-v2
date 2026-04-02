@@ -4,20 +4,20 @@ import { verifyAndUpgradePassword, hmacSign, randomHex } from '@/lib/crypto';
 import { query, queryOne } from '@/lib/db';
 import { rateLimit } from '@/lib/rate-limit';
 import { logActivity, logWarn, logError } from '@/lib/logging';
-import { getClientIp } from '@/lib/auth';
+import { getClientIp, getSessionSecret } from '@/lib/auth';
 import { bootstrapOwner } from '@/lib/helpers';
 
 export async function OPTIONS(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(origin) });
+  const requestOrigin = request.headers.get('Origin') || '';
+  return new NextResponse(null, { status: 204, headers: adminCorsHeaders(requestOrigin) });
 }
 
 export async function POST(request: NextRequest) {
-  const origin = new URL(request.url).origin;
-  const headers = adminCorsHeaders(origin);
+  const requestOrigin = request.headers.get('Origin') || '';
+  const headers = adminCorsHeaders(requestOrigin);
   const ip = getClientIp(request);
 
-  if (await rateLimit('login', ip, 5, 60_000)) {
+  if (await rateLimit('login', ip, 5, 60_000, true)) {
     logWarn({ source: 'auth', message: `Login rate limit exceeded for IP ${ip}`, request_ip: ip });
     return NextResponse.json({ error: 'Too many login attempts. Try again later.' }, { status: 429, headers });
   }
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     query("DELETE FROM sessions WHERE expires_at < NOW()").catch(() => {});
   }
 
-  const signature = await hmacSign(sessionId, adminToken);
+  const signature = await hmacSign(sessionId, getSessionSecret());
   const cookieValue = `${sessionId}.${signature}`;
 
   await logActivity(
