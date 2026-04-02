@@ -1,6 +1,8 @@
+const isProduction = process.env.NEXT_PUBLIC_BASE_URL === 'https://updatemachine.com';
+
 export const metadata = {
   title: 'Update Machine',
-  robots: 'noindex, nofollow',
+  ...(isProduction ? {} : { robots: 'noindex, nofollow' }),
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
