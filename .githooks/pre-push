@@ -1,0 +1,11 @@
+#!/bin/sh
+# Pre-push hook: runs lint + tests before allowing push.
+# Install: git config core.hooksPath .githooks
+
+echo "🔍 Running ESLint..."
+npx eslint . || { echo "❌ Lint failed. Push aborted."; exit 1; }
+
+echo "🧪 Running Vitest..."
+npx vitest run || { echo "❌ Tests failed. Push aborted."; exit 1; }
+
+echo "✅ All checks passed. Pushing..."
