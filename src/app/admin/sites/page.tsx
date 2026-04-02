@@ -689,6 +689,13 @@ export default function Dashboard() {
         {/* Security Tab */}
         <div className={`panel ${activeTab === 'security' ? 'active' : ''}`}>
           <div className="card">
+            <h3>Two-Factor Authentication</h3>
+            <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '0.75rem' }}>
+              Manage authenticator app setup, recovery codes, and disable flow from the Security settings page.
+            </p>
+            <a href="/admin/security">Open Security Settings</a>
+          </div>
+          <div className="card">
             <h3>Active Sessions</h3>
             <div className="table-wrap"><table>
               <thead><tr><th>User</th><th>Email</th><th>Created</th><th>Expires</th><th>Status</th></tr></thead>

@@ -68,6 +68,24 @@ export async function POST(request: NextRequest) {
   }
 
   const sessionDays = remember_me ? 30 : 7;
+  if (user.totp_enabled && user.totp_secret) {
+    const tempToken = `${sessionDays === 30 ? '30d' : '7d'}_${randomHex(24)}`;
+    await query(
+      `INSERT INTO pending_2fa (id, user_id, ip_address, expires_at)
+       VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes')`,
+      [tempToken, user.id, ip],
+    );
+
+    if (Math.random() < 0.01) {
+      query('DELETE FROM pending_2fa WHERE expires_at < NOW()').catch(() => {});
+    }
+
+    return NextResponse.json(
+      { requires_2fa: true, temp_token: tempToken },
+      { status: 200, headers },
+    );
+  }
+
   const sessionMaxAge = sessionDays * 86400;
   const sessionId = randomHex(32);
 
