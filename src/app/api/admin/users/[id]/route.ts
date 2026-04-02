@@ -7,7 +7,8 @@ import { logActivity } from '@/lib/logging';
 export { adminOptions as OPTIONS };
 
 export const PUT = adminHandler(async (request, user, { headers, ip }) => {
-  const targetId = parseInt(new URL(request.url).pathname.split('/').pop()!);
+  const targetId = parseInt(new URL(request.url).pathname.split('/').pop() || '', 10);
+  if (Number.isNaN(targetId)) return NextResponse.json({ error: 'Invalid user id' }, { status: 400, headers });
   if (user.via === 'token') return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
   if (!requireRole(user, 'owner')) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
   if (targetId === user.id) return NextResponse.json({ error: 'Cannot change own role' }, { status: 400, headers });
@@ -25,7 +26,8 @@ export const PUT = adminHandler(async (request, user, { headers, ip }) => {
 });
 
 export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
-  const targetId = parseInt(new URL(request.url).pathname.split('/').pop()!);
+  const targetId = parseInt(new URL(request.url).pathname.split('/').pop() || '', 10);
+  if (Number.isNaN(targetId)) return NextResponse.json({ error: 'Invalid user id' }, { status: 400, headers });
   if (user.via === 'token') return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
   if (!requireRole(user, 'owner', 'admin')) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
   if (targetId === user.id) return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400, headers });

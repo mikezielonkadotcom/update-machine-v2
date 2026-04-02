@@ -7,7 +7,8 @@ import { logActivity } from '@/lib/logging';
 export { adminOptions as OPTIONS };
 
 export const PUT = adminHandler(async (request, user, { headers, ip }) => {
-  const keyId = parseInt(new URL(request.url).pathname.split('/').pop()!);
+  const keyId = parseInt(new URL(request.url).pathname.split('/').pop() || '', 10);
+  if (Number.isNaN(keyId)) return NextResponse.json({ error: 'Invalid key id' }, { status: 400, headers });
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const body = await request.json();
@@ -28,7 +29,8 @@ export const PUT = adminHandler(async (request, user, { headers, ip }) => {
 });
 
 export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
-  const keyId = parseInt(new URL(request.url).pathname.split('/').pop()!);
+  const keyId = parseInt(new URL(request.url).pathname.split('/').pop() || '', 10);
+  if (Number.isNaN(keyId)) return NextResponse.json({ error: 'Invalid key id' }, { status: 400, headers });
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   await query('UPDATE site_keys SET is_active = FALSE WHERE id = $1', [keyId]);

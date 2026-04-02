@@ -24,6 +24,20 @@ export async function GET(request: NextRequest) {
       logError({ source: 'cron', message: `Failed to clean sessions: ${e.message}` });
     }
 
+    // Clean up expired/old pending 2FA challenges
+    try {
+      await query("DELETE FROM pending_2fa WHERE expires_at < NOW() OR created_at < NOW() - INTERVAL '1 day'");
+    } catch (e: any) {
+      logError({ source: 'cron', message: `Failed to clean pending_2fa: ${e.message}` });
+    }
+
+    // Clean up stale rate limit windows
+    try {
+      await query("DELETE FROM rate_limits WHERE window_start < NOW() - INTERVAL '2 hours'");
+    } catch (e: any) {
+      logError({ source: 'cron', message: `Failed to clean rate_limits: ${e.message}` });
+    }
+
     // Get error digest
     const totalResult = await queryOne<{ c: string }>(
       "SELECT COUNT(*) as c FROM error_log WHERE created_at > NOW() - INTERVAL '24 hours'"

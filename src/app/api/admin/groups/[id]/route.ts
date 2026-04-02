@@ -8,7 +8,8 @@ export { adminOptions as OPTIONS };
 
 export const PUT = adminHandler(async (request, user, { headers, ip }) => {
   const segments = new URL(request.url).pathname.split('/');
-  const groupId = parseInt(segments[segments.length - 1]);
+  const groupId = parseInt(segments[segments.length - 1] || '', 10);
+  if (Number.isNaN(groupId)) return NextResponse.json({ error: 'Invalid group id' }, { status: 400, headers });
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const body = await request.json();
@@ -33,7 +34,8 @@ export const PUT = adminHandler(async (request, user, { headers, ip }) => {
 
 export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
   const segments = new URL(request.url).pathname.split('/');
-  const groupId = parseInt(segments[segments.length - 1]);
+  const groupId = parseInt(segments[segments.length - 1] || '', 10);
+  if (Number.isNaN(groupId)) return NextResponse.json({ error: 'Invalid group id' }, { status: 400, headers });
   if (!canWrite(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
 
   const group = await queryOne<any>('SELECT * FROM groups WHERE id = $1', [groupId]);

@@ -9,7 +9,7 @@ export const GET = adminHandler(async (request, user, { headers }) => {
   try {
     const url = new URL(request.url);
     const pluginFilter = url.searchParams.get('plugin') || '';
-    const daysFilter = parseInt(url.searchParams.get('days') || '0') || 0;
+    const daysFilter = parseInt(url.searchParams.get('days') || '0', 10) || 0;
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -32,10 +32,15 @@ export const GET = adminHandler(async (request, user, { headers }) => {
       params
     );
 
-    const recent = await queryAll(
+    const rawRecent = await queryAll<any>(
       `SELECT * FROM download_log ${whereClause} ORDER BY created_at DESC LIMIT 50`,
       params
     );
+    const recent = rawRecent.map((row) => (
+      user.role === 'owner'
+        ? row
+        : { ...row, site_ip: null }
+    ));
 
     return NextResponse.json({ total, per_plugin: perPlugin, per_version: perVersion, recent }, { headers });
   } catch (e: any) {

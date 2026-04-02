@@ -1,6 +1,17 @@
 const GTM_ID = 'GTM-5MQWXSHS';
 const PROD_HOST = 'updatemachine.com';
 
+function isProdHostConfigured(): boolean {
+  if (process.env.NODE_ENV !== 'production') return false;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+  if (!baseUrl) return false;
+  try {
+    return new URL(baseUrl).hostname === PROD_HOST;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * GTM head script — uses runtime hostname check so it never fires on
  * canary/staging/local, even though the same build artifact may serve
@@ -30,6 +41,8 @@ export function GoogleTagManagerHead() {
  * disabled on non-prod, the iframe loads but GTM ignores unknown origins.
  */
 export function GoogleTagManagerBody() {
+  if (!isProdHostConfigured()) return null;
+
   return (
     <noscript>
       <iframe
