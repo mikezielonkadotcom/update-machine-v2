@@ -6,6 +6,23 @@ import { logWarn, logError as logErr } from '@/lib/logging';
 import { getClientIp } from '@/lib/auth';
 import { rateLimit } from '@/lib/rate-limit';
 
+export function parseSiteUrlFromUA(ua: string): string {
+  const trimmed = (ua || '').trim();
+  if (!trimmed) return '';
+
+  const parts = trimmed.split(';');
+  const candidate = (parts.length > 1 ? parts[parts.length - 1] : '').trim();
+  if (!candidate) return '';
+
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
@@ -34,6 +51,10 @@ async function recordSiteCheck(slug: string, body: any, plainKey: string | null)
        site_key_id = COALESCE($6, sites.site_key_id), group_id = COALESCE($7, sites.group_id)`,
     [siteUrl, siteName, adminEmail, slug, pluginVersion, siteKeyId, groupId]
   );
+}
+
+function normalizeSiteUrl(value: string): string {
+  return (value || '').trim().replace(/\/+$/, '');
 }
 
 async function serveR2File(key: string, contentType: string, cacheSeconds: number, extraHeaders: Record<string, string> = {}) {
@@ -106,9 +127,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
   if (isZip && response.status === 200) {
     const baseName = filename.replace(/\.zip$/, '');
     const version = baseName.startsWith(slug + '-') ? baseName.slice(slug.length + 1) : baseName;
-    const siteUrl = request.headers.get('Referer') || new URL(request.url).searchParams.get('site_url') || '';
+    const explicitSiteUrl = request.headers.get('Referer') || new URL(request.url).searchParams.get('site_url') || '';
     const siteIp = getClientIp(request);
     const userAgent = request.headers.get('User-Agent') || '';
+    const siteUrl = explicitSiteUrl || parseSiteUrlFromUA(userAgent);
 
     // Resolve site_key_id for audit trail
     const plainKey = extractSiteKey(request);
@@ -143,6 +165,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const body = await request.json();
     const siteKey = extractSiteKey(request);
     await recordSiteCheck(slug, body, siteKey);
+
+    const siteUrl = normalizeSiteUrl(body?.site_url || '');
+    const siteName = (body?.site_name || '').trim();
+    const pluginVersion = (body?.plugin_version || '').trim();
+    const siteIp = getClientIp(request);
+    const userAgent = request.headers.get('User-Agent') || '';
+
+    let siteKeyId: number | null = null;
+    if (siteKey) {
+      const keyRow = await validateSiteKey(siteKey);
+      if (keyRow) siteKeyId = keyRow.id;
+    }
+
+    query(
+      `INSERT INTO update_check_log
+        (plugin_slug, site_url, site_name, plugin_version, site_ip, user_agent, site_key_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [slug, siteUrl, siteName, pluginVersion, siteIp, userAgent, siteKeyId]
+    ).catch(() => {});
   } catch (e: any) {
     logWarn({ source: 'analytics', message: `recordSiteCheck failed: ${e.message}`, stack: e.stack });
   }
