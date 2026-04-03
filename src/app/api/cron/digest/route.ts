@@ -38,6 +38,13 @@ export async function GET(request: NextRequest) {
       logError({ source: 'cron', message: `Failed to clean rate_limits: ${e.message}` });
     }
 
+    // Clean up old update check logs
+    try {
+      await query("DELETE FROM update_check_log WHERE created_at < NOW() - INTERVAL '90 days'");
+    } catch (e: any) {
+      logError({ source: 'cron', message: `Failed to clean update_check_log: ${e.message}` });
+    }
+
     // Get error digest
     const totalResult = await queryOne<{ c: string }>(
       "SELECT COUNT(*) as c FROM error_log WHERE created_at > NOW() - INTERVAL '24 hours'"
