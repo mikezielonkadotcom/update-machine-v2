@@ -3,6 +3,7 @@ import { adminHandler, adminOptions } from '@/lib/admin-handler';
 import { deleteObject, getObjectAsBuffer, listObjects, putObject } from '@/lib/r2';
 import { requireRole } from '@/lib/auth';
 import { logActivity, logError } from '@/lib/logging';
+import { sendSlackMessage } from '@/lib/slack';
 
 export { adminOptions as OPTIONS };
 
@@ -205,6 +206,7 @@ export const POST = adminHandler(async (request, user, { headers, ip }) => {
     slug,
     ip
   );
+  sendSlackMessage(`Plugin uploaded: ${slug} v${version} by ${user.email}`).catch(() => {});
 
   return NextResponse.json({ ok: true, plugin: metadata }, { headers });
 });
@@ -243,6 +245,7 @@ export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
       slug,
       ip
     );
+    sendSlackMessage(`Plugin deleted: ${slug} (all versions) by ${user.email}`).catch(() => {});
     return NextResponse.json({ ok: true, deleted: slug }, { headers });
   }
 
@@ -284,6 +287,7 @@ export const DELETE = adminHandler(async (request, user, { headers, ip }) => {
     slug,
     ip
   );
+  sendSlackMessage(`Plugin deleted: ${slug} v${version} by ${user.email}`).catch(() => {});
 
   return NextResponse.json({ ok: true, deleted: slug }, { headers });
 });

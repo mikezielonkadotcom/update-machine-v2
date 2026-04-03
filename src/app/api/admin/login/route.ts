@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { logActivity, logWarn, logError } from '@/lib/logging';
 import { getClientIp, getSessionSecret } from '@/lib/auth';
 import { bootstrapOwner } from '@/lib/helpers';
+import { sendSlackMessage } from '@/lib/slack';
 
 export async function OPTIONS(request: NextRequest) {
   const requestOrigin = request.headers.get('Origin') || '';
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     logWarn({ source: 'auth', message: `Failed login: unknown email ${email}`, request_ip: ip });
+    sendSlackMessage(`Failed login attempt: unknown email ${email} (ip ${ip})`).catch(() => {});
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401, headers });
   }
 
@@ -64,6 +66,7 @@ export async function POST(request: NextRequest) {
 
   if (!passwordValid) {
     logWarn({ source: 'auth', message: `Failed login: wrong password for ${email}`, request_ip: ip });
+    sendSlackMessage(`Failed login attempt: wrong password for ${email} (ip ${ip})`).catch(() => {});
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401, headers });
   }
 

@@ -6,6 +6,7 @@ import { query, queryOne, queryAll } from '@/lib/db';
 import { rateLimit } from '@/lib/rate-limit';
 import { logWarn } from '@/lib/logging';
 import { getClientIp } from '@/lib/auth';
+import { sendSlackMessage } from '@/lib/slack';
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
@@ -112,6 +113,8 @@ export async function POST(request: NextRequest) {
     );
     plugins.push(plugin_slug);
   }
+
+  sendSlackMessage(`New site registered: ${normalizedUrl} (${plugin_slug})`).catch(() => {});
 
   return NextResponse.json(
     { site_key: plainKey, group: defaultGroup?.slug || 'default', plugins },
