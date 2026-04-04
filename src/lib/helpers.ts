@@ -5,7 +5,7 @@ import { query, queryOne } from './db';
 export const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Update-Key',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'X-Robots-Tag': 'noindex, nofollow',
 };
 

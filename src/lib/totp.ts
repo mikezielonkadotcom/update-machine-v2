@@ -7,7 +7,10 @@ const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ENCRYPTION_PREFIX = 'enc:v1';
 
 function deriveTotpKey(): Buffer {
-  const keyMaterial = process.env.TOTP_ENCRYPTION_KEY || process.env.ADMIN_TOKEN || 'update-machine-default-totp-key';
+  const keyMaterial = process.env.TOTP_ENCRYPTION_KEY || process.env.ADMIN_TOKEN;
+  if (!keyMaterial) {
+    throw new Error('Missing TOTP encryption key: set TOTP_ENCRYPTION_KEY or ADMIN_TOKEN');
+  }
   return crypto.createHash('sha256').update(keyMaterial).digest();
 }
 

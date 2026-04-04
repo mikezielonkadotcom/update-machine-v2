@@ -136,19 +136,47 @@ describe('totp utilities', () => {
   });
 
   it('encryptTOTPSecret and decryptTOTPSecret roundtrip', () => {
-    const secret = generateTOTPSecret();
-    const encrypted = encryptTOTPSecret(secret);
+    process.env.TOTP_ENCRYPTION_KEY = 'test-totp-key-for-vitest';
+    try {
+      const secret = generateTOTPSecret();
+      const encrypted = encryptTOTPSecret(secret);
 
-    expect(encrypted.startsWith('enc:v1:')).toBe(true);
-    expect(decryptTOTPSecret(encrypted)).toBe(secret);
+      expect(encrypted.startsWith('enc:v1:')).toBe(true);
+      expect(decryptTOTPSecret(encrypted)).toBe(secret);
+    } finally {
+      delete process.env.TOTP_ENCRYPTION_KEY;
+    }
   });
 
   it('decryptTOTPSecret returns plaintext value for backward compatibility', () => {
-    expect(decryptTOTPSecret('JBSWY3DPEHPK3PXP')).toBe('JBSWY3DPEHPK3PXP');
+    process.env.TOTP_ENCRYPTION_KEY = 'test-totp-key-for-vitest';
+    try {
+      expect(decryptTOTPSecret('JBSWY3DPEHPK3PXP')).toBe('JBSWY3DPEHPK3PXP');
+    } finally {
+      delete process.env.TOTP_ENCRYPTION_KEY;
+    }
   });
 
   it('decryptTOTPSecret throws on corrupted encrypted data', () => {
-    expect(() => decryptTOTPSecret('enc:v1:not-base64:also-bad:broken')).toThrow();
+    process.env.TOTP_ENCRYPTION_KEY = 'test-totp-key-for-vitest';
+    try {
+      expect(() => decryptTOTPSecret('enc:v1:not-base64:also-bad:broken')).toThrow();
+    } finally {
+      delete process.env.TOTP_ENCRYPTION_KEY;
+    }
+  });
+
+  it('deriveTotpKey throws when no env vars are set', () => {
+    const origTotp = process.env.TOTP_ENCRYPTION_KEY;
+    const origAdmin = process.env.ADMIN_TOKEN;
+    delete process.env.TOTP_ENCRYPTION_KEY;
+    delete process.env.ADMIN_TOKEN;
+    try {
+      expect(() => encryptTOTPSecret('JBSWY3DPEHPK3PXP')).toThrow('Missing TOTP encryption key');
+    } finally {
+      if (origTotp) process.env.TOTP_ENCRYPTION_KEY = origTotp;
+      if (origAdmin) process.env.ADMIN_TOKEN = origAdmin;
+    }
   });
 
   it('generateTOTPSecret returns valid base32', () => {
