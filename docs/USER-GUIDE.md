@@ -131,14 +131,24 @@ To add a new plugin:
 3. **Upload both files** to R2 under `{plugin-slug}/`
 
 You can upload via:
-- **Cloudflare Dashboard** → R2 → `update-machine-releases` bucket
-- **CLI** (`wrangler r2 object put`) - recommended for CI/CD
-- **API** (any S3-compatible client)
+- **Upload API** (`POST /api/admin/plugins`) — recommended for CI/CD. Accepts zip + metadata, auto-generates `update.json`. Auth: `Authorization: Bearer {ADMIN_TOKEN}`
+- **Cloudflare Dashboard** → R2 → `update-machine-releases` bucket (manual fallback)
+- **S3-compatible client** (direct R2 access, requires CF credentials)
 
-The plugin appears in the dashboard's **Plugins** tab automatically once its `update.json` is in R2.
+The plugin appears in the dashboard's **Plugins** tab automatically once published.
 
 ### Releasing an Update
 
+**Via Upload API (recommended):**
+```bash
+curl -X POST "https://updatemachine.com/api/admin/plugins" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -F "slug=your-plugin" -F "name=Your Plugin" -F "version=1.9.5" \
+  -F "requires=6.4" -F "requires_php=8.1" -F "tested=6.9" \
+  -F "file=@your-plugin-1.9.5.zip"
+```
+
+**Manually:**
 1. Build the new version zip (e.g. `macros-block-1.9.5.zip`)
 2. Update `update.json` with the new version number and download URL
 3. Upload both files to R2, replacing the old ones
