@@ -34,6 +34,11 @@ Update Machine is a private release server for WordPress plugins. It handles upd
   - [Download Logs](#download-logs)
   - [Activity Log](#activity-log)
   - [Error Log](#error-log)
+- [CI/CD Integration](#cicd-integration)
+  - [GitHub Actions Workflow](#github-actions-workflow)
+  - [Required Secrets](#required-secrets)
+  - [New Plugin Checklist](#new-plugin-checklist)
+  - [Troubleshooting](#troubleshooting)
 - [Security](#security)
   - [Blocklist](#blocklist)
   - [Rate Limiting](#rate-limiting)
@@ -110,15 +115,24 @@ update-machine-releases/
 └── ...
 ```
 
+**⚠️ URL Routing: Update Machine uses `/{slug}/{filename}` — there is NO `/plugins/` prefix.**
+
+| What | Correct URL | R2 Key |
+|------|------------|--------|
+| Manifest | `updatemachine.com/{slug}/update.json` | `update-machine-releases/{slug}/update.json` |
+| Zip | `updatemachine.com/{slug}/{slug}-{ver}.zip` | `update-machine-releases/{slug}/{slug}-{ver}.zip` |
+
+> **Common mistake:** Using `updatemachine.com/plugins/{slug}/update.json` → 404. The Worker routes are flat.
+
 To add a new plugin:
 
-1. **Build a production zip** of your plugin (no dev files - no `node_modules`, `vendor`, `.git`, source files, etc.)
+1. **Build a production zip** of your plugin (no dev files — no `node_modules`, `vendor`, `.git`, source files, etc.)
 2. **Create an `update.json` manifest** (see format below)
 3. **Upload both files** to R2 under `{plugin-slug}/`
 
 You can upload via:
 - **Cloudflare Dashboard** → R2 → `update-machine-releases` bucket
-- **CLI** (`wrangler r2 object put`, `mc cp`, or `aws s3 cp`)
+- **CLI** (`wrangler r2 object put`) — recommended for CI/CD
 - **API** (any S3-compatible client)
 
 The plugin appears in the dashboard's **Plugins** tab automatically once its `update.json` is in R2.
@@ -455,3 +469,95 @@ Add it to your manifest:
 ```
 
 If you omit the `sha256` field, updates proceed without integrity checks (with a logged warning).
+
+---
+
+## CI/CD Integration
+
+The recommended way to publish releases to Update Machine is via GitHub Actions. This automates: building the zip, creating a GitHub Release, generating the `update.json` manifest, and uploading everything to R2.
+
+### GitHub Actions Workflow
+
+The canonical workflow template lives in the **macros-block** repo (`.github/workflows/release.yml`). It has two jobs:
+
+**Job 1: `release`** — Build and create a GitHub Release
+- Triggers on push of a version tag (`v*`)
+- Checks out the repo
+- Builds production assets (`npm ci && npm run build`, if applicable)
+- Creates a clean zip using `.distignore` (excludes dev files)
+- Creates a GitHub Release with the zip attached
+
+**Job 2: `publish-update-machine`** — Upload to R2
+- Runs after the `release` job completes
+- Downloads the release zip from the GitHub Release
+- Parses the main plugin file’s PHP headers (`Version`, `Requires at least`, `Requires PHP`, `Tested up to`, `Author`, `Plugin URI`) to auto-generate `update.json`
+- Uploads both `update.json` and the zip to R2 via **wrangler**
+
+#### Example wrangler upload commands:
+
+```bash
+# Upload manifest
+wrangler r2 object put "update-machine-releases/${SLUG}/update.json" \
+  --file update.json \
+  --content-type application/json
+
+# Upload zip
+wrangler r2 object put "update-machine-releases/${SLUG}/${SLUG}-${VERSION}.zip" \
+  --file "${SLUG}-${VERSION}.zip" \
+  --content-type application/zip
+```
+
+> **Important:** Use `wrangler` for R2 uploads (not rclone). Wrangler authenticates via `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` environment variables.
+
+### Required Secrets
+
+Add these as GitHub Actions secrets in your repo (**Settings → Secrets and variables → Actions**):
+
+| Secret | Description |
+|--------|-------------|
+| `CF_API_TOKEN` | Cloudflare API token with R2 Object Read & Write permissions |
+| `CF_ACCOUNT_ID` | Your Cloudflare account ID |
+
+The same token/account ID is shared across all MZV plugin repos.
+
+### New Plugin Checklist
+
+When integrating a new WordPress plugin with Update Machine:
+
+- [ ] Add `includes/um-updater.php` to your plugin (copy from macros-block)
+- [ ] Add `Update URI: https://updatemachine.com/{slug}/update.json` header to main plugin file
+- [ ] Add `require_once` + `\UM\PluginUpdater\register()` call with correct `update_url`
+- [ ] Verify `update_url` uses `updatemachine.com/{slug}/update.json` (**no** `/plugins/` prefix!)
+- [ ] Copy `.github/workflows/release.yml` from macros-block and adapt slug/build steps
+- [ ] Add `CF_API_TOKEN` and `CF_ACCOUNT_ID` secrets to your GitHub repo
+- [ ] Tag your first release: `git tag v1.0.0 && git push --tags`
+- [ ] Verify manifest: `curl -s https://updatemachine.com/{slug}/update.json | jq .`
+- [ ] Test update in WordPress: install the plugin, visit Dashboard → Updates, confirm it appears
+
+### Troubleshooting
+
+#### 404 on update.json
+
+**Symptom:** `curl https://updatemachine.com/{slug}/update.json` returns 404.
+
+**Most likely cause:** A `/plugins/` prefix in the URL. Update Machine routes are `/{slug}/update.json`, not `/plugins/{slug}/update.json`.
+
+**Check:**
+1. The `update_url` in your plugin’s PHP `register()` call
+2. The R2 upload path in your GitHub Actions workflow — should be `update-machine-releases/{slug}/update.json`
+3. The `download_url` in your `update.json` manifest
+
+#### Updates not showing in WordPress
+
+**Possible causes:**
+- **Transient cache:** WordPress caches update checks for up to 12 hours. Click “Check Again” on Dashboard → Updates.
+- **Version mismatch:** `update.json` version must be *higher* than the installed version (`version_compare()`).
+- **Missing `Update URI` header:** WordPress 5.8+ requires this header to allow third-party update servers.
+
+#### CI workflow runs but files don’t appear in R2
+
+**Check:**
+- `CF_API_TOKEN` and `CF_ACCOUNT_ID` secrets are set in the repo
+- The API token has R2 Object Read & Write permissions
+- The wrangler upload path includes the bucket name: `update-machine-releases/{slug}/...`
+- The workflow is using `wrangler r2 object put`, not rclone or aws-cli
