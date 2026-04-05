@@ -68,7 +68,7 @@ Navigate to `/logmein` on your Update Machine instance (e.g. `https://updatemach
 
 1. **Email + Password** - Enter your credentials and click **Log In**. Check "Remember me for 30 days" for a longer session (default is 7 days).
 
-2. **Magic Link** — Enter your email and click **Send me a login link**. A one-time login link is delivered via **Slack DM** (requires `SLACK_BOT_TOKEN` and `SLACK_CHANNEL` to be configured). The link expires in 15 minutes. Note: magic links are not sent via email — Slack is the only delivery channel.
+2. **Magic Link** - Enter your email and click **Send me a login link**. A one-time login link is delivered via **Slack DM** (requires `SLACK_BOT_TOKEN` and `SLACK_CHANNEL` to be configured). The link expires in 15 minutes. Note: magic links are not sent via email - Slack is the only delivery channel.
 
 After logging in, you're redirected to the **Sites** dashboard at `/admin/sites`.
 
@@ -115,7 +115,7 @@ update-machine-releases/
 └── ...
 ```
 
-**⚠️ URL Routing: Update Machine uses `/{slug}/{filename}` — there is NO `/plugins/` prefix.**
+**⚠️ URL Routing: Update Machine uses `/{slug}/{filename}` - there is NO `/plugins/` prefix.**
 
 | What | Correct URL | R2 Key |
 |------|------------|--------|
@@ -126,13 +126,13 @@ update-machine-releases/
 
 To add a new plugin:
 
-1. **Build a production zip** of your plugin (no dev files — no `node_modules`, `vendor`, `.git`, source files, etc.)
+1. **Build a production zip** of your plugin (no dev files - no `node_modules`, `vendor`, `.git`, source files, etc.)
 2. **Create an `update.json` manifest** (see format below)
 3. **Upload both files** to R2 under `{plugin-slug}/`
 
 You can upload via:
 - **Cloudflare Dashboard** → R2 → `update-machine-releases` bucket
-- **CLI** (`wrangler r2 object put`) — recommended for CI/CD
+- **CLI** (`wrangler r2 object put`) - recommended for CI/CD
 - **API** (any S3-compatible client)
 
 The plugin appears in the dashboard's **Plugins** tab automatically once its `update.json` is in R2.
@@ -480,45 +480,47 @@ The recommended way to publish releases to Update Machine is via GitHub Actions.
 
 The canonical workflow template lives in the **macros-block** repo (`.github/workflows/release.yml`). It has two jobs:
 
-**Job 1: `release`** — Build and create a GitHub Release
+**Job 1: `release`** - Build and create a GitHub Release
 - Triggers on push of a version tag (`v*`)
 - Checks out the repo
 - Builds production assets (`npm ci && npm run build`, if applicable)
 - Creates a clean zip using `.distignore` (excludes dev files)
 - Creates a GitHub Release with the zip attached
 
-**Job 2: `publish-update-machine`** — Upload to R2
+**Job 2: `publish-update-machine`** — Upload via API
 - Runs after the `release` job completes
-- Downloads the release zip from the GitHub Release
-- Parses the main plugin file’s PHP headers (`Version`, `Requires at least`, `Requires PHP`, `Tested up to`, `Author`, `Plugin URI`) to auto-generate `update.json`
-- Uploads both `update.json` and the zip to R2 via **wrangler**
+- Downloads the release zip artifact
+- Parses the main plugin file’s PHP headers (`Plugin Name`, `Description`, `Requires at least`, `Requires PHP`, `Tested up to`)
+- Calls `POST /api/admin/plugins` with the zip and metadata
+- Update Machine handles everything server-side: R2 storage, `update.json` generation, download URL construction, Slack notification
 
-#### Example wrangler upload commands:
+#### Example curl upload:
 
 ```bash
-# Upload manifest
-wrangler r2 object put "update-machine-releases/${SLUG}/update.json" \
-  --file update.json \
-  --content-type application/json
-
-# Upload zip
-wrangler r2 object put "update-machine-releases/${SLUG}/${SLUG}-${VERSION}.zip" \
-  --file "${SLUG}-${VERSION}.zip" \
-  --content-type application/zip
+curl -X POST "https://updatemachine.com/api/admin/plugins" \
+  -H "Authorization: Bearer ${UM_ADMIN_TOKEN}" \
+  -F "slug=your-plugin" \
+  -F "name=Your Plugin" \
+  -F "version=1.2.3" \
+  -F "requires=6.4" \
+  -F "requires_php=8.1" \
+  -F "tested=6.9" \
+  -F "description=Plugin description" \
+  -F "changelog=See GitHub releases." \
+  -F "file=@your-plugin-1.2.3.zip"
 ```
 
-> **Important:** Use `wrangler` for R2 uploads (not rclone). Wrangler authenticates via `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` environment variables.
+> **Note:** The upload API generates `update.json` server-side with the correct `download_url`, so you don’t need to build the manifest yourself.
 
 ### Required Secrets
 
-Add these as GitHub Actions secrets in your repo (**Settings → Secrets and variables → Actions**):
+Add this as a GitHub Actions secret in your repo (**Settings → Secrets and variables → Actions**):
 
 | Secret | Description |
 |--------|-------------|
-| `CF_API_TOKEN` | Cloudflare API token with R2 Object Read & Write permissions |
-| `CF_ACCOUNT_ID` | Your Cloudflare account ID |
+| `UM_ADMIN_TOKEN` | The `ADMIN_TOKEN` value from Update Machine’s Vercel env vars. Authenticates as owner via Bearer token. |
 
-The same token/account ID is shared across all MZV plugin repos.
+One secret per repo. Same token value across all plugin repos.
 
 ### New Plugin Checklist
 
@@ -529,7 +531,7 @@ When integrating a new WordPress plugin with Update Machine:
 - [ ] Add `require_once` + `\UM\PluginUpdater\register()` call with correct `update_url`
 - [ ] Verify `update_url` uses `updatemachine.com/{slug}/update.json` (**no** `/plugins/` prefix!)
 - [ ] Copy `.github/workflows/release.yml` from macros-block and adapt slug/build steps
-- [ ] Add `CF_API_TOKEN` and `CF_ACCOUNT_ID` secrets to your GitHub repo
+- [ ] Add `UM_ADMIN_TOKEN` secret to your GitHub repo
 - [ ] Tag your first release: `git tag v1.0.0 && git push --tags`
 - [ ] Verify manifest: `curl -s https://updatemachine.com/{slug}/update.json | jq .`
 - [ ] Test update in WordPress: install the plugin, visit Dashboard → Updates, confirm it appears
@@ -543,21 +545,22 @@ When integrating a new WordPress plugin with Update Machine:
 **Most likely cause:** A `/plugins/` prefix in the URL. Update Machine routes are `/{slug}/update.json`, not `/plugins/{slug}/update.json`.
 
 **Check:**
-1. The `update_url` in your plugin’s PHP `register()` call
-2. The R2 upload path in your GitHub Actions workflow — should be `update-machine-releases/{slug}/update.json`
+1. The `update_url` in your plugin's PHP `register()` call
+2. The R2 upload path in your GitHub Actions workflow - should be `update-machine-releases/{slug}/update.json`
 3. The `download_url` in your `update.json` manifest
 
 #### Updates not showing in WordPress
 
 **Possible causes:**
-- **Transient cache:** WordPress caches update checks for up to 12 hours. Click “Check Again” on Dashboard → Updates.
+- **Transient cache:** WordPress caches update checks for up to 12 hours. Click "Check Again" on Dashboard → Updates.
 - **Version mismatch:** `update.json` version must be *higher* than the installed version (`version_compare()`).
 - **Missing `Update URI` header:** WordPress 5.8+ requires this header to allow third-party update servers.
 
-#### CI workflow runs but files don’t appear in R2
+#### CI workflow runs but upload fails
 
 **Check:**
-- `CF_API_TOKEN` and `CF_ACCOUNT_ID` secrets are set in the repo
-- The API token has R2 Object Read & Write permissions
-- The wrangler upload path includes the bucket name: `update-machine-releases/{slug}/...`
-- The workflow is using `wrangler r2 object put`, not rclone or aws-cli
+- `UM_ADMIN_TOKEN` secret is set in the repo (Settings → Secrets)
+- The token value matches the `ADMIN_TOKEN` in Vercel env vars
+- The curl call returns HTTP 200 (check workflow logs for status code)
+- The zip file is under 50MB (API limit)
+- The slug uses lowercase letters and hyphens only (e.g. `my-plugin`, not `My Plugin`)
